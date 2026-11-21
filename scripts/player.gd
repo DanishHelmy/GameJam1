@@ -4,6 +4,7 @@ extends CharacterBody2D
 ## Controls
 ##   A/D move          Space/Z jump
 ##   Shift/X dash      (8 directions, one charge, refills on landing)
+##   Left click grapple (aims at the mouse cursor)
 ##   E/V grapple       (aim with direction keys; hits walls, hooks and the thrown arm; pulls you in)
 ##   Q/C arm           (throw in aim direction; press again to recall; hold Down + Q to drop it)
 ##   R respawn
@@ -47,6 +48,7 @@ var anchor_pos := Vector2.ZERO
 var anchor_node: Node2D = null
 var grapple_grace := 0.0
 
+var grapple_by_mouse := false
 var arm: Area2D = null
 
 var jet_fx: CPUParticles2D
@@ -71,6 +73,14 @@ func _setup_input() -> void:
 				var ev := InputEventKey.new()
 				ev.physical_keycode = k
 				InputMap.action_add_event(action, ev)
+	var click := InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	InputMap.action_add_event("grapple", click)
+
+func _input(event: InputEvent) -> void:
+	# Remember whether the grapple press came from the mouse, so we aim at the cursor
+	if event.is_action_pressed("grapple"):
+		grapple_by_mouse = event is InputEventMouseButton
 
 func _setup_fx() -> void:
 	jet_fx = CPUParticles2D.new()
@@ -190,6 +200,10 @@ func _end_dash() -> void:
 # ---------------------------------------------------------------- grapple
 func _try_grapple() -> void:
 	var aim := _aim()
+	if grapple_by_mouse:
+		var to_mouse := get_global_mouse_position() - global_position
+		if to_mouse.length() > 4.0:
+			aim = to_mouse.normalized()
 	var space := get_world_2d().direct_space_state
 	var target_pos := Vector2.ZERO
 	var target_node: Node2D = null

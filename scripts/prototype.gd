@@ -73,7 +73,7 @@ var found_log := false
 
 func _process(_d: float) -> void:
 	if player:
-		hud.text = "A/D move  Space jump  Shift dash  E grapple (aim with keys)  Q throw/recall arm (Down+Q drop)  R respawn\ndash: %s   grapple: %s   arm: %s" % [
+		hud.text = "A/D move  Space jump  Shift dash  Click/E grapple (mouse or keys aim)  Q throw/recall arm (Down+Q drop)  R respawn\ndash: %s   grapple: %s   arm: %s" % [
 			"ready" if player.can_dash else "spent", "ready" if player.can_grapple else "spent",
 			"detached" if player.arm else "attached"]
 		if found_log:
