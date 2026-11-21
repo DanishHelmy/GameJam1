@@ -337,8 +337,9 @@ func crumble(rect: Rect2) -> void:
 		if body != player or state.busy:
 			return
 		state.busy = true
-		var tw := b.create_tween()
-		tw.tween_property(v, "position:x", -rect.size.x / 2 + 3, 0.04).set_loops(8)
+		var tw := b.create_tween().set_loops(8)
+		tw.tween_property(v, "position:x", -rect.size.x / 2 + 3, 0.04)
+		tw.tween_property(v, "position:x", -rect.size.x / 2 - 3, 0.04)
 		await get_tree().create_timer(0.4).timeout
 		tw.kill()
 		v.position.x = -rect.size.x / 2
