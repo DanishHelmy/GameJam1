@@ -17,8 +17,8 @@ the same as being worthless.
 
 ## The hero - "Subject 0" (?)
 ~80% machine. Has no name, only the label on the patient file: **SUBJECT 0 -
-REJECTED**. Doesn't speak; thoughts appear as short lines of text. Name is
-a reveal at the end (see Ending) (?)
+REJECTED**. Doesn't speak; thoughts appear as short lines of text. 
+a reveal at the end: his human name was **Tommy**.
 
 **What "rejected" means:** the program replaced a dying person's body with
 machine parts. Most subjects were "upgraded" until nothing human was left and
@@ -57,16 +57,16 @@ nothing happens - the city is already empty. The signal was never for the city.
 Instead the terminal plays the one memory the program could not delete:
 the screen fades out of pixel art into warmer, softer colour. A **human**
 (the hero, before) stands in front of a small house at dusk. A door, a lit
-window, someone calling a name. The hero finally hears their own name.
+window, someone calling a name. The hero finally hears their own name: Tommy.
 
 Cut back: the hero stands alone on the roof, still a machine, but the
 tower lights come on one by one across the city - not a rescue, only proof
-that someone was here. Last line: the name. Fade out. (?)
+that someone was here. Last line: "Tommy." Fade out to the title card: TOMMY.
 
 No choice at the end (jam scope): the ending is the memory.
 
 ## Open questions for the team
-1. Protagonist name (revealed in the ending). Suggestions: pick something ordinary.
+1. Tommy: how old in the memory, and who is calling him?
 2. Is Pip the drone okay, or should the drone be nameless?
 3. Do we want the Lab -> house drawing as an early hint? (needs one small sprite)
 4. Memory scene art: a simple pixel scene of a house at dusk; who draws it?
