@@ -17,8 +17,8 @@ the same as being worthless.
 
 ## The hero - "Subject 0" (?)
 ~80% machine. Has no name, only the label on the patient file: **SUBJECT 0 -
-REJECTED**. Doesn't speak; thoughts appear as short lines of text. 
-a reveal at the end: his human name was **Tommy**.
+Doesn't speak; thoughts appear as short lines of text. His human name is a
+reveal at the end: **Tommy**.
 
 **What "rejected" means:** the program replaced a dying person's body with
 machine parts. Most subjects were "upgraded" until nothing human was left and
