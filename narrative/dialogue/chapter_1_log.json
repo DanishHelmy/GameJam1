@@ -1,0 +1,8 @@
+{
+  "id": "chapter_1_log",
+  "lines": [
+    { "speaker": "Data log 1", "text": "Evacuation order, day 3. Subjects 1 to 40: cleared for transfer." },
+    { "speaker": "Data log 1", "text": "Subject 0: not cleared. Rejected units stay in the lab." },
+    { "speaker": "", "text": "Stay. Not 'left behind'. Stay." }
+  ]
+}

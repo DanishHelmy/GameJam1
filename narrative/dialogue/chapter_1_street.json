@@ -1,0 +1,8 @@
+{
+  "id": "chapter_1_street",
+  "lines": [
+    { "speaker": "Announcement", "text": "Good morning, citizens. The evacuation is complete. Thank you for your cooperation." },
+    { "speaker": "", "text": "Nobody is listening." },
+    { "speaker": "", "text": "High in the tower, one window is lit." }
+  ]
+}

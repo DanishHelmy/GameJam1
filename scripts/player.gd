@@ -21,7 +21,7 @@ const DASH_SPEED := 560.0
 const DASH_TIME := 0.16
 const DASH_END_SPEED := 240.0
 
-const GRAPPLE_RANGE := 420.0
+const GRAPPLE_RANGE := 560.0
 const GRAPPLE_ASSIST_ANGLE := 0.35      # radians; snaps to hooks/arm near your aim
 const PULL_SPEED := 820.0
 const PULL_MAX_TIME := 0.7
@@ -49,6 +49,13 @@ var anchor_node: Node2D = null
 var grapple_grace := 0.0
 
 var grapple_by_mouse := false
+
+# Ability gating (the game script unlocks these as the story progresses)
+var has_dash := true
+var has_grapple := true
+var has_arm := true
+var speed_mult := 1.0
+var jump_mult := 1.0
 var arm: Area2D = null
 
 var jet_fx: CPUParticles2D
@@ -127,14 +134,14 @@ func _physics_process(delta: float) -> void:
 	if Input.is_action_just_pressed("restart"):
 		_respawn()
 		return
-	if Input.is_action_just_pressed("detach"):
+	if has_arm and Input.is_action_just_pressed("detach"):
 		_arm_action()
-	if Input.is_action_just_pressed("dash") and can_dash:
+	if has_dash and Input.is_action_just_pressed("dash") and can_dash:
 		_start_dash()
 	if Input.is_action_just_pressed("grapple"):
 		if pulling:
 			_end_pull()
-		elif can_grapple and not dashing:
+		elif has_grapple and can_grapple and not dashing:
 			_try_grapple()
 
 	if dashing:
@@ -148,7 +155,7 @@ func _physics_process(delta: float) -> void:
 
 	if pulling and get_slide_collision_count() > 0:
 		_end_pull()
-	if global_position.y > 1200.0:
+	if global_position.y > 900.0:
 		_respawn()
 	queue_redraw()
 
@@ -156,10 +163,10 @@ func _physics_process(delta: float) -> void:
 func _walk(dir: float, delta: float) -> void:
 	var on_floor := is_on_floor()
 	var accel := ACCEL if on_floor else AIR_ACCEL
-	velocity.x = move_toward(velocity.x, dir * SPEED, accel * delta)
+	velocity.x = move_toward(velocity.x, dir * SPEED * speed_mult, accel * delta)
 
 	if buffer > 0.0 and (coyote > 0.0 or grapple_grace > 0.0):
-		velocity.y = JUMP_VELOCITY
+		velocity.y = JUMP_VELOCITY * jump_mult
 		buffer = 0.0
 		coyote = 0.0
 		grapple_grace = 0.0
@@ -184,7 +191,7 @@ func _dash_step(delta: float) -> void:
 	# Dash-jump: jump during a ground dash
 	if buffer > 0.0 and coyote > 0.0:
 		_end_dash()
-		velocity.y = JUMP_VELOCITY
+		velocity.y = JUMP_VELOCITY * jump_mult
 		velocity.x = dash_dir.x * DASH_SPEED * 0.9
 		buffer = 0.0
 		coyote = 0.0
