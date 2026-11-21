@@ -1,0 +1,10 @@
+{
+  "id": "level_1_lab",
+  "lines": [
+    { "speaker": "", "text": "Power restored: 12%." },
+    { "speaker": "Patient file", "text": "SUBJECT 0. STATUS: REJECTED. Do not reinitialise." },
+    { "speaker": "", "text": "Rejected by what?" },
+    { "speaker": "", "text": "Something in the scrap bin is humming. A leg. A spring leg." },
+    { "speaker": "", "text": "...Get up." }
+  ]
+}

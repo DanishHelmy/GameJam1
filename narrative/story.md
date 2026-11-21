@@ -3,6 +3,9 @@
 Built on the team design doc (`docs/design.md`, branch `mechanics/design-doc`).
 Items marked **(?)** are my guesses - please confirm or change.
 
+> **v0.3:** the jam build now uses 6 levels, one new limb each. See `levels.md` (world, limbs, boss),
+> `art_brief.md` (for the artist) and `dialogue/level_*.json`. The chapter table below is the older plan.
+
 ## One line
 A rejected machine climbs a dead city toward a signal, and at the top finds the
 one thing it was never supposed to keep: a memory of being human.
