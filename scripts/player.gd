@@ -7,6 +7,7 @@ extends CharacterBody2D
 ##   Left click grapple (aims at the mouse cursor)
 ##   E/V grapple       (aim with direction keys; hits walls, hooks and the thrown arm; pulls you in)
 ##   Q/C arm           (throw in aim direction; press again to recall; hold Down + Q to drop it)
+##   F x-ray eyes (toggle; reveals hidden mechanisms)
 ##   R respawn
 
 const SPEED := 230.0
@@ -54,6 +55,8 @@ var grapple_by_mouse := false
 var has_dash := true
 var has_grapple := true
 var has_arm := true
+var has_xray := true
+var xray_on := false
 var speed_mult := 1.0
 var jump_mult := 1.0
 var arm: Area2D = null
@@ -71,7 +74,7 @@ func _setup_input() -> void:
 		"up": [KEY_W, KEY_UP], "down": [KEY_S, KEY_DOWN],
 		"jump": [KEY_SPACE, KEY_Z], "dash": [KEY_SHIFT, KEY_X],
 		"grapple": [KEY_E, KEY_V], "detach": [KEY_Q, KEY_C],
-		"restart": [KEY_R],
+		"restart": [KEY_R], "xray": [KEY_F],
 	}
 	for action in map:
 		if not InputMap.has_action(action):
@@ -134,6 +137,8 @@ func _physics_process(delta: float) -> void:
 	if Input.is_action_just_pressed("restart"):
 		_respawn()
 		return
+	if has_xray and Input.is_action_just_pressed("xray"):
+		xray_on = not xray_on
 	if has_arm and Input.is_action_just_pressed("detach"):
 		_arm_action()
 	if has_dash and Input.is_action_just_pressed("dash") and can_dash:

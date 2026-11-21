@@ -25,6 +25,7 @@ func _process(_d: float) -> void:
 	if p.has_dash: t += "  Shift dash"
 	if p.has_grapple: t += "  Click/E grapple"
 	if p.has_arm: t += "  Q throw/recall arm (Down+Q drop)"
+	if p.has_xray: t += "  F x-ray eyes"
 	hud.text = t
 
 func _load_room() -> void:

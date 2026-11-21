@@ -14,6 +14,8 @@ var exit_area: Area2D
 var door: StaticBody2D
 var door_shape: CollisionShape2D
 var plate_count := 0
+var xray_nodes: Array = []   # [{node, body, hook}]
+var xray_overlay: ColorRect
 
 var room_id := ""
 
@@ -28,6 +30,15 @@ func _ready() -> void:
 	player.position = spawn
 	add_child(player)
 	Progress.apply(player)
+	var layer := CanvasLayer.new()
+	layer.layer = 5
+	xray_overlay = ColorRect.new()
+	xray_overlay.color = Color(0.1, 0.9, 0.8, 0.12)
+	xray_overlay.size = Vector2(1280, 720)
+	xray_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	xray_overlay.visible = false
+	layer.add_child(xray_overlay)
+	add_child(layer)
 
 func _border() -> void:
 	block(Rect2(-40, -40, 1360, 40))
@@ -189,6 +200,56 @@ func pickup(pos: Vector2, kind: String) -> void:
 			"arm": Progress.has_arm = true
 			"grapple": Progress.has_grapple = true
 			"dash": Progress.has_dash = true
+			"xray": Progress.has_xray = true
 		Progress.apply(player)
 		c.queue_free())
 	add_child(c)
+
+func _process(_d: float) -> void:
+	var on: bool = player != null and is_instance_valid(player) and player.xray_on and player.has_xray
+	if xray_overlay:
+		xray_overlay.visible = on
+	for e in xray_nodes:
+		e.node.visible = on
+		if e.body:
+			for c in e.node.get_children():
+				if c is CollisionShape2D:
+					c.set_deferred("disabled", not on)
+		if e.hook:
+			if on and not e.node.is_in_group("hook"):
+				e.node.add_to_group("hook")
+			elif not on and e.node.is_in_group("hook"):
+				e.node.remove_from_group("hook")
+
+## Solid only while x-ray eyes are on.
+func hidden_block(rect: Rect2) -> void:
+	var b := StaticBody2D.new()
+	b.collision_layer = 1
+	b.position = rect.position + rect.size / 2
+	var s := CollisionShape2D.new()
+	var r := RectangleShape2D.new()
+	r.size = rect.size
+	s.shape = r
+	s.disabled = true
+	b.add_child(s)
+	var v := ColorRect.new()
+	v.color = Color("4fd1c5")
+	v.size = rect.size
+	v.position = -rect.size / 2
+	b.add_child(v)
+	b.visible = false
+	add_child(b)
+	xray_nodes.append({"node": b, "body": true, "hook": false})
+
+## Grapple hook that exists only while x-ray eyes are on.
+func hidden_hook(pos: Vector2) -> void:
+	var h := Node2D.new()
+	h.position = pos
+	var v := ColorRect.new()
+	v.color = Color("4fd1c5")
+	v.size = Vector2(16, 16)
+	v.position = Vector2(-8, -8)
+	h.add_child(v)
+	h.visible = false
+	add_child(h)
+	xray_nodes.append({"node": h, "body": false, "hook": true})

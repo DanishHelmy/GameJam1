@@ -20,8 +20,8 @@ static func title(id: String) -> String:
 		"c1r2": "Street 2: collapsed road",
 		"c1r3": "Street 3: the tall wall",
 		"c2r1": "Subway 1: first switch",
-		"c2r2": "Subway 2: leave it behind",
-		"c2r3": "Subway 3: grapple to the arm",
+		"c2r2": "Subway 2: leave it behind (x-ray)",
+		"c2r3": "Subway 3: unseen path (x-ray)",
 	}.get(id, id)
 
 static func build(r: RoomBase, id: String) -> void:
@@ -114,6 +114,7 @@ static func _c2r1(r: RoomBase) -> void:
 	r.spawn = Vector2(100, 600)
 	r.block(Rect2(0, 640, 1280, 80))
 	r.plate_and_door(Rect2(330, 630, 120, 10), Rect2(900, 340, 30, 300))
+	r.pickup(Vector2(180, 612), "xray")   # a dead subject's scanner eyes
 	r.exit_zone(Rect2(1180, 560, 60, 80))
 
 static func _c2r2(r: RoomBase) -> void:
@@ -124,7 +125,7 @@ static func _c2r2(r: RoomBase) -> void:
 	r.block(Rect2(420, 700, 400, 20))      # flooded pit floor
 	r.block(Rect2(820, 640, 460, 80))
 	r.plate_and_door(Rect2(300, 630, 100, 10), Rect2(560, 300, 30, 400))
-	r.hook(Vector2(700, 380))
+	r.hidden_hook(Vector2(700, 380))     # only visible with x-ray eyes (F)
 	r.data_log(Vector2(1000, 600), "res://narrative/dialogue/chapter_2_log.json")
 	r.exit_zone(Rect2(1180, 560, 60, 80))
 
@@ -134,5 +135,8 @@ static func _c2r3(r: RoomBase) -> void:
 	r.spawn = Vector2(100, 600)
 	r.block(Rect2(0, 640, 300, 80))
 	r.block(Rect2(980, 640, 300, 80))
-	r.block(Rect2(640, 100, 40, 300))      # ceiling stub: throw the arm past it, grapple to the arm
+	# Hidden stepping stones, solid only while x-ray eyes are on (press F)
+	r.hidden_block(Rect2(340, 540, 100, 20))
+	r.hidden_block(Rect2(540, 540, 100, 20))
+	r.hidden_block(Rect2(740, 540, 100, 20))
 	r.exit_zone(Rect2(1180, 560, 60, 80))
