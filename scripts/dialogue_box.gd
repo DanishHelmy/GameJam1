@@ -1,5 +1,5 @@
 extends CanvasLayer
-## Plays a dialogue JSON from res://narrative/dialogue/. Press Enter/Space to advance.
+## Plays a dialogue JSON from res://narrative/dialogue/. Press Enter, Space or left click to advance.
 ## Writers edit the JSON only; no code changes needed.
 
 signal finished
@@ -23,7 +23,9 @@ func _ready() -> void:
 	_show_line()
 
 func _unhandled_input(event: InputEvent) -> void:
-	if visible and event.is_action_pressed("ui_accept"):
+	var click := event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT
+	if visible and (event.is_action_pressed("ui_accept") or click):
+		get_viewport().set_input_as_handled()
 		_index += 1
 		_show_line()
 

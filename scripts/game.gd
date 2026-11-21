@@ -64,7 +64,9 @@ func _show_dialogue_then_resume(file: String) -> void:
 	dlg = preload("res://scenes/dialogue_box.tscn").instantiate()
 	dlg.dialogue_file = file
 	dlg.finished.connect(func():
+		dlg.queue_free()
+		# short delay so the click that closed the dialogue doesn't also fire the grapple
+		await get_tree().create_timer(0.15).timeout
 		if is_instance_valid(p):
-			p.set_physics_process(true)
-		dlg.queue_free())
+			p.set_physics_process(true))
 	add_child(dlg)
