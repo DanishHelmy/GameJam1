@@ -5,6 +5,7 @@ extends CharacterBody2D
 ##   A/D move          Space/Z jump
 ##   Shift/X dash      (8 directions, one charge, refills on landing)
 ##   Left click grapple (aims at the mouse cursor)
+##   Right click throw/recall the arm toward the cursor (kills enemies)
 ##   E/V grapple       (aim with direction keys; hits walls, hooks and the thrown arm; pulls you in)
 ##   Q/C arm           (throw in aim direction; press again to recall; hold Down + Q to drop it)
 ##   F x-ray eyes (toggle; reveals hidden mechanisms)
@@ -50,6 +51,7 @@ var anchor_node: Node2D = null
 var grapple_grace := 0.0
 
 var grapple_by_mouse := false
+var arm_by_mouse := false
 
 # Ability gating (the game script unlocks these as the story progresses)
 var has_dash := true
@@ -86,11 +88,16 @@ func _setup_input() -> void:
 	var click := InputEventMouseButton.new()
 	click.button_index = MOUSE_BUTTON_LEFT
 	InputMap.action_add_event("grapple", click)
+	var rclick := InputEventMouseButton.new()
+	rclick.button_index = MOUSE_BUTTON_RIGHT
+	InputMap.action_add_event("detach", rclick)
 
 func _input(event: InputEvent) -> void:
 	# Remember whether the grapple press came from the mouse, so we aim at the cursor
 	if event.is_action_pressed("grapple"):
 		grapple_by_mouse = event is InputEventMouseButton
+	if event.is_action_pressed("detach"):
+		arm_by_mouse = event is InputEventMouseButton
 
 func _setup_fx() -> void:
 	jet_fx = CPUParticles2D.new()
@@ -296,7 +303,11 @@ func _arm_action() -> void:
 	get_parent().add_child(arm)
 	arm.returned.connect(_on_arm_returned)
 	var aim := _aim()
-	var drop := Input.is_action_pressed("down")
+	if arm_by_mouse:
+		var to_mouse := get_global_mouse_position() - global_position
+		if to_mouse.length() > 4.0:
+			aim = to_mouse.normalized()
+	var drop := Input.is_action_pressed("down") and not arm_by_mouse
 	if drop:
 		arm.launch(global_position + Vector2(0, 14), Vector2.ZERO)
 	else:

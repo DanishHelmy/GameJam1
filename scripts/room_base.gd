@@ -365,9 +365,16 @@ func _enemy_area(pos: Vector2, size: Vector2) -> Area2D:
 	a.body_entered.connect(func(b):
 		if b == player:
 			player.call_deferred("_respawn"))
-	a.area_entered.connect(func(other):
-		if other.is_in_group("arm") and other.get("state") == 0:
-			a.queue_free())
+	# Poll overlaps so a recalled arm also kills an enemy it is already touching
+	var t := Timer.new()
+	t.wait_time = 0.05
+	t.autostart = true
+	t.timeout.connect(func():
+		for other in a.get_overlapping_areas():
+			if other.is_in_group("arm") and other.get("state") != 1:
+				a.queue_free()
+				return)
+	a.add_child(t)
 	add_child(a)
 	return a
 

@@ -14,7 +14,7 @@ own stolen limbs, and at the top finds the memory of his home. Sad, quiet, gentl
 | Run / jump | A/D, Space (Z) | Variable-height jump, coyote time, jump buffer. Without the leg: slow hop (0.55x speed, 0.6x jump). |
 | Jet dash | Shift (X) | 8 directions, one charge, refills on landing. |
 | Grapple (left arm) | Left click (aims at cursor), E/V (aims with direction keys) | Pulls you to walls, hooks and the thrown arm. One use until you land. Range 560. |
-| Detach arm (right arm) | Q / C | Throw, stays where it lands, holds switches, is a grapple anchor. Press again to recall. Down+Q drops it. |
+| Detach arm (right arm) | Right click (aims at cursor), Q / C | Throw, stays where it lands, holds switches, is a grapple anchor. Press again to recall. Down+Q drops it. |
 | X-ray eyes | F (toggle) | Reveals and activates hidden platforms and grapple hooks. |
 | Respawn | R | Instant, same room. |
 | Dialogue | Enter, Space or left click | Advances lines. |
