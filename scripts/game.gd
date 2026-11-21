@@ -6,6 +6,7 @@ var hud: Label
 var hud_layer: CanvasLayer
 var dlg: CanvasLayer
 var busy := false
+var cam: Camera2D
 
 func _ready() -> void:
 	Progress.reset()
@@ -20,6 +21,14 @@ func _process(_d: float) -> void:
 	if room == null or room.player == null or not is_instance_valid(room.player):
 		return
 	var p = room.player
+	if cam and is_instance_valid(cam):
+		if room.cam_snap != Vector2.INF:
+			cam.position = _cam_goal(room.cam_snap)   # hard cut to the next tier
+			room.cam_snap = Vector2.INF
+		elif not room.cam_locked:
+			var goal := _cam_goal(p.global_position)
+			cam.position.x = goal.x
+			cam.position.y = lerpf(cam.position.y, goal.y, clampf(_d * 7.0, 0.0, 1.0))
 	var t := "%s   (room %d/%d, logs %d)\n" % [Rooms.title(room.room_id), Progress.room_index + 1, Rooms.ORDER.size(), Progress.logs]
 	t += "A/D move  Space jump  R respawn"
 	if p.has_dash: t += "  Shift dash"
@@ -27,6 +36,13 @@ func _process(_d: float) -> void:
 	if p.has_arm: t += "  Q throw/recall arm (Down+Q drop)"
 	if p.has_xray: t += "  F x-ray eyes"
 	hud.text = t
+
+func _cam_goal(pp: Vector2) -> Vector2:
+	var z: float = room.cam_zoom
+	var hw := 640.0 / z
+	var hh := 360.0 / z
+	return Vector2(clampf(pp.x, hw, maxf(room.width - hw, hw)), clampf(pp.y, hh, maxf(room.height - hh, hh)))
+
 
 func _load_room() -> void:
 	if room:
@@ -41,9 +57,11 @@ func _load_room() -> void:
 	room.exited.connect(_next_room)
 	room.log_found.connect(_show_dialogue_then_resume)
 	add_child(room)
-	var cam := Camera2D.new()
-	cam.anchor_mode = Camera2D.ANCHOR_MODE_FIXED_TOP_LEFT
+	cam = Camera2D.new()
+	cam.anchor_mode = Camera2D.ANCHOR_MODE_DRAG_CENTER
+	cam.zoom = Vector2.ONE * room.cam_zoom
 	room.add_child(cam)
+	cam.position = _cam_goal(room.spawn)
 	if Rooms.INTRO.has(id):
 		_show_dialogue_then_resume(Rooms.INTRO[id])
 
