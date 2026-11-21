@@ -23,7 +23,10 @@ func _ready() -> void:
 	_show_line()
 
 func _unhandled_input(event: InputEvent) -> void:
-	var click := event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT
+	var click := false
+	if event is InputEventMouseButton:
+		var mb := event as InputEventMouseButton
+		click = mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT
 	if visible and (event.is_action_pressed("ui_accept") or click):
 		get_viewport().set_input_as_handled()
 		_index += 1
