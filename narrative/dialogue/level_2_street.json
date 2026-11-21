@@ -1,0 +1,10 @@
+{
+  "id": "level_2_street",
+  "lines": [
+    { "speaker": "Announcer", "text": "Good morning, Meridian! Today is a wonderful day to be upgraded!" },
+    { "speaker": "", "text": "No one is here. The street is empty." },
+    { "speaker": "", "text": "A tower, far away. One window is lit." },
+    { "speaker": "", "text": "An arm in a glass case. A tiny house is drawn on the label." },
+    { "speaker": "", "text": "It fits. It comes off, too. Useful." }
+  ]
+}
