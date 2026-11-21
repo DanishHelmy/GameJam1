@@ -253,3 +253,99 @@ func hidden_hook(pos: Vector2) -> void:
 	h.visible = false
 	add_child(h)
 	xray_nodes.append({"node": h, "body": false, "hook": true})
+
+# ---------------------------------------------------------------- traps
+func _kill_zone(area: Area2D) -> void:
+	area.collision_layer = 0
+	area.collision_mask = 8
+	area.body_entered.connect(func(b):
+		if b == player:
+			player.call_deferred("_respawn"))
+
+## Row of spikes filling rect (touching them respawns you).
+func spikes(rect: Rect2) -> void:
+	var a := Area2D.new()
+	a.position = rect.position + rect.size / 2
+	var s := CollisionShape2D.new()
+	var r := RectangleShape2D.new()
+	r.size = Vector2(rect.size.x, rect.size.y * 0.7)
+	s.shape = r
+	s.position.y = rect.size.y * 0.15
+	a.add_child(s)
+	var n := maxi(1, int(rect.size.x / 14.0))
+	var w := rect.size.x / n
+	for i in n:
+		var t := Polygon2D.new()
+		var x := -rect.size.x / 2 + i * w
+		t.polygon = PackedVector2Array([Vector2(x, rect.size.y / 2), Vector2(x + w / 2, -rect.size.y / 2), Vector2(x + w, rect.size.y / 2)])
+		t.color = Color("d9534f")
+		a.add_child(t)
+	_kill_zone(a)
+	add_child(a)
+
+## Saw that patrols between two points.
+func saw(from: Vector2, to: Vector2, seconds := 2.0) -> void:
+	var a := Area2D.new()
+	a.position = from
+	var s := CollisionShape2D.new()
+	var c := CircleShape2D.new()
+	c.radius = 15.0
+	s.shape = c
+	a.add_child(s)
+	var pts := PackedVector2Array()
+	for i in 12:
+		var ang := TAU * i / 12.0
+		var rad := 18.0 if i % 2 == 0 else 11.0
+		pts.append(Vector2(cos(ang), sin(ang)) * rad)
+	var v := Polygon2D.new()
+	v.polygon = pts
+	v.color = Color("e0524d")
+	a.add_child(v)
+	_kill_zone(a)
+	add_child(a)
+	var tw := a.create_tween().set_loops()
+	tw.tween_property(a, "position", to, seconds).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(a, "position", from, seconds).set_trans(Tween.TRANS_SINE)
+
+## Platform that shakes, then drops when stood on, and comes back later.
+func crumble(rect: Rect2) -> void:
+	var b := StaticBody2D.new()
+	b.collision_layer = 1
+	b.position = rect.position + rect.size / 2
+	var s := CollisionShape2D.new()
+	var r := RectangleShape2D.new()
+	r.size = rect.size
+	s.shape = r
+	b.add_child(s)
+	var v := ColorRect.new()
+	v.color = Color("8a6d4b")
+	v.size = rect.size
+	v.position = -rect.size / 2
+	b.add_child(v)
+	var sense := Area2D.new()
+	sense.collision_layer = 0
+	sense.collision_mask = 8
+	var ss := CollisionShape2D.new()
+	var sr := RectangleShape2D.new()
+	sr.size = Vector2(rect.size.x, 10)
+	ss.shape = sr
+	ss.position.y = -rect.size.y / 2 - 5
+	sense.add_child(ss)
+	b.add_child(sense)
+	var state := {"busy": false}
+	sense.body_entered.connect(func(body):
+		if body != player or state.busy:
+			return
+		state.busy = true
+		var tw := b.create_tween()
+		tw.tween_property(v, "position:x", -rect.size.x / 2 + 3, 0.04).set_loops(8)
+		await get_tree().create_timer(0.4).timeout
+		tw.kill()
+		v.position.x = -rect.size.x / 2
+		s.set_deferred("disabled", true)
+		b.visible = false
+		await get_tree().create_timer(1.8).timeout
+		s.set_deferred("disabled", false)
+		b.visible = true
+		state.busy = false)
+	add_child(b)
