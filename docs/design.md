@@ -92,7 +92,8 @@ evacuation and experiment story.
 - Assumed: right arm detachable, left arm grapple, left leg is the missing one
   recovered in the lab. Confirm.
 - Official jam theme, to check this fits.
-- Protagonist name and tone (sad, hopeful, funny?).
+- ~~Protagonist name and tone~~ Decided in `narrative/`: hero is Subject 0 (Tommy, revealed at the end), sad and quiet tone; drone is Pip.
+- Art guide lists 6 levels (surface, caves, frozen, fungal, lava, boss); story lists 5 chapters. Reconcile.
 - Why were the limbs removed, and who took them? (Needs an answer by the tower.)
 - Art style and who handles sprites.
 - Final ending choice.

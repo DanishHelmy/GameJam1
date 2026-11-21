@@ -60,6 +60,12 @@ func _ready() -> void:
 	cam.limit_bottom = int(1040 * K)
 	player.add_child(cam)
 
+	# Chapter 0 intro dialogue (teammates' dialogue box); player is frozen until it ends
+	var dlg = preload("res://scenes/dialogue_box.tscn").instantiate()
+	player.set_physics_process(false)
+	dlg.finished.connect(func(): player.set_physics_process(true))
+	add_child(dlg)
+
 	var layer := CanvasLayer.new()
 	hud = Label.new()
 	hud.position = Vector2(12, 8)
