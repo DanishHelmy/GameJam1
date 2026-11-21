@@ -17,6 +17,7 @@ the same as being worthless.
 
 ## The hero - "Subject 0" (?)
 ~80% machine. Has no name, only the label on the patient file: **SUBJECT 0 -
+REJECTED**.
 Doesn't speak; thoughts appear as short lines of text. His human name is a
 reveal at the end: **Tommy**.
 
