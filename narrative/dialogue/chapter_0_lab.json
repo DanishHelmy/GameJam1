@@ -1,0 +1,10 @@
+{
+  "id": "chapter_0_lab",
+  "lines": [
+    { "speaker": "", "text": "Power restored: 12%." },
+    { "speaker": "", "text": "Left leg: missing. Right arm: functional. Left arm: missing." },
+    { "speaker": "Patient file", "text": "SUBJECT 0. STATUS: REJECTED. Do not reinitialise." },
+    { "speaker": "", "text": "Rejected by what?" },
+    { "speaker": "", "text": "...Get up." }
+  ]
+}
