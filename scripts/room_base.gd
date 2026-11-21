@@ -24,6 +24,9 @@ func build() -> void:
 
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(bg_color)
+	var bg := Backgrounds.make(room_id)
+	if bg:
+		add_child(bg)
 	_border()
 	build()
 	player = preload("res://scenes/player.tscn").instantiate()
