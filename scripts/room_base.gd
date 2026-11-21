@@ -24,15 +24,15 @@ func build() -> void:
 
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(bg_color)
-	var bg := Backgrounds.make(room_id)
-	if bg:
-		add_child(bg)
 	_border()
 	build()
 	player = preload("res://scenes/player.tscn").instantiate()
 	player.position = spawn
 	add_child(player)
 	Progress.apply(player)
+	var bg := Backgrounds.make(room_id, player)
+	if bg:
+		add_child(bg)
 	var layer := CanvasLayer.new()
 	layer.layer = 5
 	xray_overlay = ColorRect.new()
