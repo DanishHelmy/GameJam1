@@ -349,3 +349,79 @@ func crumble(rect: Rect2) -> void:
 		b.visible = true
 		state.busy = false)
 	add_child(b)
+
+# ---------------------------------------------------------------- enemies
+## Touching an enemy respawns you. A thrown arm that is still flying kills it.
+func _enemy_area(pos: Vector2, size: Vector2) -> Area2D:
+	var a := Area2D.new()
+	a.position = pos
+	a.collision_layer = 0
+	a.collision_mask = 8 | 2
+	var s := CollisionShape2D.new()
+	var r := RectangleShape2D.new()
+	r.size = size
+	s.shape = r
+	a.add_child(s)
+	a.body_entered.connect(func(b):
+		if b == player:
+			player.call_deferred("_respawn"))
+	a.area_entered.connect(func(other):
+		if other.is_in_group("arm") and other.get("state") == 0:
+			a.queue_free())
+	add_child(a)
+	return a
+
+## Rat: scurries back and forth along the floor between two x positions.
+func rat(from: Vector2, to: Vector2, seconds := 2.5) -> void:
+	var a := _enemy_area(from, Vector2(26, 16))
+	var body := Polygon2D.new()
+	body.polygon = PackedVector2Array([Vector2(-13, 8), Vector2(-10, -4), Vector2(2, -8), Vector2(12, -2), Vector2(14, 8)])
+	body.color = Color("8d7f74")
+	a.add_child(body)
+	var tail := Polygon2D.new()
+	tail.polygon = PackedVector2Array([Vector2(-13, 5), Vector2(-24, 2), Vector2(-24, 4), Vector2(-13, 8)])
+	tail.color = Color("c9a7a0")
+	a.add_child(tail)
+	var eye := ColorRect.new()
+	eye.color = Color("ff4040")
+	eye.size = Vector2(3, 3)
+	eye.position = Vector2(7, -4)
+	a.add_child(eye)
+	var tw := a.create_tween().set_loops()
+	tw.tween_property(a, "position", to, seconds)
+	tw.tween_callback(func(): a.scale.x = -1.0)
+	tw.tween_property(a, "position", from, seconds)
+	tw.tween_callback(func(): a.scale.x = 1.0)
+
+## Bird: flies back and forth along a wavy path.
+func bird(from: Vector2, to: Vector2, seconds := 3.0, wave := 40.0) -> void:
+	var a := _enemy_area(from, Vector2(28, 18))
+	var wing_l := Polygon2D.new()
+	wing_l.polygon = PackedVector2Array([Vector2(0, 0), Vector2(-16, -10), Vector2(-6, 4)])
+	wing_l.color = Color("5d6d7e")
+	a.add_child(wing_l)
+	var wing_r := Polygon2D.new()
+	wing_r.polygon = PackedVector2Array([Vector2(0, 0), Vector2(16, -10), Vector2(6, 4)])
+	wing_r.color = Color("5d6d7e")
+	a.add_child(wing_r)
+	var body := Polygon2D.new()
+	body.polygon = PackedVector2Array([Vector2(-8, 2), Vector2(0, -5), Vector2(8, 2), Vector2(0, 8)])
+	body.color = Color("34495e")
+	a.add_child(body)
+	var beak := Polygon2D.new()
+	beak.polygon = PackedVector2Array([Vector2(6, 0), Vector2(14, 2), Vector2(6, 4)])
+	beak.color = Color("f0b429")
+	a.add_child(beak)
+	var flap := a.create_tween().set_loops()
+	flap.tween_property(wing_l, "scale:y", -1.0, 0.18)
+	flap.parallel().tween_property(wing_r, "scale:y", -1.0, 0.18)
+	flap.tween_property(wing_l, "scale:y", 1.0, 0.18)
+	flap.parallel().tween_property(wing_r, "scale:y", 1.0, 0.18)
+	var base_y := from.y
+	var tw := a.create_tween().set_loops()
+	tw.tween_method(func(t: float):
+		a.position = Vector2(lerpf(from.x, to.x, t), base_y + sin(t * TAU * 2.0) * wave), 0.0, 1.0, seconds)
+	tw.tween_callback(func(): a.scale.x = -1.0)
+	tw.tween_method(func(t: float):
+		a.position = Vector2(lerpf(to.x, from.x, t), base_y + sin(t * TAU * 2.0) * wave), 0.0, 1.0, seconds)
+	tw.tween_callback(func(): a.scale.x = 1.0)

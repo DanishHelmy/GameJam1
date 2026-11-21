@@ -102,6 +102,7 @@ static func _c1r2(r: RoomBase) -> void:
 	r.block(Rect2(980, 640, 300, 80))
 	r.spring(Rect2(250, 626, 50, 14), -1000.0)
 	r.spikes(Rect2(1010, 626, 70, 14))
+	r.rat(Vector2(120, 632), Vector2(200, 632), 2.0)
 	r.block(Rect2(480, 400, 140, 20))
 	r.block(Rect2(740, 400, 140, 20))
 	r.exit_zone(Rect2(1180, 560, 60, 80))
@@ -114,6 +115,8 @@ static func _c1r3(r: RoomBase) -> void:
 	r.block(Rect2(740, 300, 200, 20))
 	r.spring(Rect2(500, 626, 60, 14), -1050.0)
 	r.spikes(Rect2(220, 626, 90, 14))
+	r.rat(Vector2(350, 632), Vector2(480, 632), 1.8)
+	r.rat(Vector2(900, 632), Vector2(1100, 632), 1.5)
 	r.spikes(Rect2(1000, 436, 100, 14))
 	r.data_log(Vector2(840, 270), "res://narrative/dialogue/chapter_1_log.json")
 	r.block(Rect2(960, 450, 320, 20))
@@ -127,6 +130,7 @@ static func _c2r1(r: RoomBase) -> void:
 	r.block(Rect2(0, 640, 1280, 80))
 	r.plate_and_door(Rect2(330, 630, 120, 10), Rect2(900, 340, 30, 300))
 	r.saw(Vector2(560, 610), Vector2(800, 610), 1.6)
+	r.rat(Vector2(1000, 632), Vector2(1140, 632), 1.4)
 	r.pickup(Vector2(180, 612), "xray")   # a dead subject's scanner eyes
 	r.exit_zone(Rect2(1180, 560, 60, 80))
 
@@ -141,6 +145,7 @@ static func _c2r2(r: RoomBase) -> void:
 	r.spikes(Rect2(420, 686, 400, 14))
 	r.saw(Vector2(500, 520), Vector2(780, 520), 1.4)
 	r.hidden_hook(Vector2(700, 380))     # only visible with x-ray eyes (F)
+	r.rat(Vector2(880, 632), Vector2(1100, 632), 1.6)
 	r.data_log(Vector2(1000, 600), "res://narrative/dialogue/chapter_2_log.json")
 	r.exit_zone(Rect2(1180, 560, 60, 80))
 
@@ -171,6 +176,7 @@ static func _c3r1(r: RoomBase) -> void:
 	r.crumble(Rect2(720, 520, 110, 18))
 	r.crumble(Rect2(900, 580, 110, 18))
 	r.hook(Vector2(620, 340))
+	r.bird(Vector2(300, 450), Vector2(960, 450), 3.4, 50.0)
 	r.spikes(Rect2(240, 696, 800, 14))
 	r.exit_zone(Rect2(1180, 560, 60, 80))
 
@@ -185,6 +191,7 @@ static func _c3r2(r: RoomBase) -> void:
 	r.saw(Vector2(760, 590), Vector2(1080, 590), 1.2)
 	r.saw(Vector2(900, 470), Vector2(1100, 470), 1.0)
 	r.block(Rect2(800, 520, 120, 18))
+	r.bird(Vector2(500, 380), Vector2(1100, 380), 2.8, 60.0)
 	r.spikes(Rect2(1090, 626, 60, 14))
 	r.exit_zone(Rect2(1190, 560, 60, 80))
 
@@ -197,6 +204,7 @@ static func _c3r3(r: RoomBase) -> void:
 	r.crumble(Rect2(340, 560, 100, 18))
 	r.crumble(Rect2(520, 480, 100, 18))
 	r.hidden_hook(Vector2(760, 380))
+	r.bird(Vector2(300, 320), Vector2(900, 200), 2.6, 40.0)
 	r.block(Rect2(860, 300, 200, 18))
 	r.saw(Vector2(900, 250), Vector2(1040, 250), 0.9)
 	r.spikes(Rect2(260, 696, 1020, 14))
@@ -216,5 +224,7 @@ static func _c4r1(r: RoomBase) -> void:
 	r.crumble(Rect2(1040, 500, 100, 18))
 	r.saw(Vector2(660, 540), Vector2(1060, 540), 1.3)
 	r.hook(Vector2(960, 300))
+	r.bird(Vector2(350, 400), Vector2(1000, 400), 2.4, 70.0)
+	r.rat(Vector2(40, 632), Vector2(260, 632), 1.3)
 	r.block(Rect2(1140, 340, 140, 18))
 	r.exit_zone(Rect2(1200, 260, 60, 80))
