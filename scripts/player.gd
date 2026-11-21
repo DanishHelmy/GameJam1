@@ -303,13 +303,19 @@ func _arm_action() -> void:
 	get_parent().add_child(arm)
 	arm.returned.connect(_on_arm_returned)
 	var aim := _aim()
-	if arm_by_mouse:
-		var to_mouse := get_global_mouse_position() - global_position
-		if to_mouse.length() > 4.0:
-			aim = to_mouse.normalized()
+	var to_mouse := get_global_mouse_position() - global_position
+	var use_mouse := arm_by_mouse and to_mouse.length() > 4.0
+	if use_mouse:
+		aim = to_mouse.normalized()
 	var drop := Input.is_action_pressed("down") and not arm_by_mouse
 	if drop:
 		arm.launch(global_position + Vector2(0, 14), Vector2.ZERO)
+	elif use_mouse:
+		# Ballistic throw: pick the launch velocity so the arm's arc passes through the cursor
+		var start := global_position + aim * 18.0
+		var d := get_global_mouse_position() - start
+		var flight := clampf(d.length() / ARM_THROW_SPEED, 0.08, 1.2)
+		arm.launch(start, Vector2(d.x / flight, d.y / flight - 0.5 * arm.GRAVITY * flight))
 	else:
 		arm.launch(global_position + aim * 18.0, aim * ARM_THROW_SPEED + Vector2(velocity.x * 0.25, -60.0))
 
