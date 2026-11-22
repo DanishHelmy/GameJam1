@@ -62,6 +62,24 @@ const LEVEL_BG := [
 ]
 var bg_layer: CanvasLayer
 var plat_tex: Texture2D
+var limb_tex := {}
+
+func _limb_texture(name: String) -> Texture2D:
+	if not limb_tex.has(name):
+		var path := "res://assets/sprites/limbs/clean/%s.png" % name
+		limb_tex[name] = load(path) if ResourceLoader.exists(path) else null
+	return limb_tex[name]
+
+## Draw a limb sprite fitted inside a box of size px, centred on c.
+func _draw_limb(name: String, c: Vector2, px: float, tint := Color.WHITE) -> bool:
+	var t := _limb_texture(name)
+	if t == null:
+		return false
+	var s := t.get_size()
+	var k := px / maxf(s.x, s.y)
+	var sz := s * k
+	draw_texture_rect(t, Rect2(c - sz / 2.0, sz), false, tint)
+	return true
 
 func _set_background(i: int) -> void:
 	if bg_layer:
@@ -417,7 +435,11 @@ func _draw() -> void:
 				"a":
 					draw_arc(rect.get_center(), 11, 0, TAU, 20, Color(0.3, 0.9, 1.0, 0.9 if xray else 0.05), 3)
 				"L":
-					draw_circle(rect.get_center(), 11, Color(1.0, 0.9, 0.4))
+					var lname: String = LevelsData.LEVELS[level_i]["limb"]
+					var bob := sin(Time.get_ticks_msec() / 260.0) * 3.0
+					draw_circle(rect.get_center(), 17, Color(1.0, 0.9, 0.4, 0.28))
+					if not _draw_limb(lname, rect.get_center() + Vector2(0, bob), 30.0):
+						draw_circle(rect.get_center(), 11, Color(1.0, 0.9, 0.4))
 				"E":
 					draw_rect(rect.grow(-4), Color(0.5, 1.0, 0.6))
 				"W":
@@ -437,8 +459,11 @@ func _draw() -> void:
 	draw_string(font, Vector2(16, 700), data["hint"], HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.8, 0.8, 0.8))
 	var x := 700.0
 	for l in ["leg", "arm", "eye", "grapple", "jet"]:
-		draw_string(font, Vector2(x, 24), l.to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(1, 0.9, 0.4) if owned.has(l) else Color(0.4, 0.4, 0.4))
-		x += 100.0
+		var have: bool = owned.has(l)
+		draw_rect(Rect2(x - 4, 4, 40, 40), Color(0, 0, 0, 0.45))
+		if not _draw_limb(l, Vector2(x + 16, 24), 32.0, Color.WHITE if have else Color(0.2, 0.2, 0.25, 0.7)):
+			draw_string(font, Vector2(x, 24), l.to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(1, 0.9, 0.4) if have else Color(0.4, 0.4, 0.4))
+		x += 52.0
 	if toast_t > 0.0:
 		draw_string(font, Vector2(16, 60), toast_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1, 0.9, 0.4))
 
