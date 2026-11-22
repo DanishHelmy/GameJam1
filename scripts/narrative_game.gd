@@ -51,7 +51,30 @@ func _ready() -> void:
 	load_level(0)
 
 
+const LEVEL_BG := [
+	"res://assets/backgrounds/lvl1_lab.png",
+	"res://assets/backgrounds/lvl2_city.png",
+	"res://assets/backgrounds/lvl3_subway.png",
+	"res://assets/backgrounds/lvl4_skyway.png",
+	"res://assets/backgrounds/lvl5_tower.png",
+	"res://assets/backgrounds/lvl6_roof.png",
+]
+var bg_layer: CanvasLayer
+
+func _set_background(i: int) -> void:
+	if bg_layer:
+		bg_layer.queue_free()
+		bg_layer = null
+	var bg := Backgrounds.make_from_file(LEVEL_BG[i], func(): return pos)
+	if bg == null:
+		return
+	bg_layer = CanvasLayer.new()
+	bg_layer.layer = -10
+	bg_layer.add_child(bg)
+	add_child(bg_layer)
+
 func load_level(i: int) -> void:
+	_set_background(i)
 	level_i = i
 	var data: Dictionary = LevelsData.LEVELS[i]
 	map = (data["map"] as Array).duplicate()
@@ -364,7 +387,8 @@ func level_tint() -> Color:
 
 
 func _draw() -> void:
-	draw_rect(Rect2(0, 0, 1280, 720), level_tint())
+	if bg_layer == null:
+		draw_rect(Rect2(0, 0, 1280, 720), level_tint())
 	draw_set_transform(Vector2(0, Y_OFFSET))
 	for r in range(MAP_H):
 		for c in range(MAP_W):

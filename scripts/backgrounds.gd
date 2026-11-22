@@ -17,6 +17,7 @@ const PARALLAX := Vector2(0.18, 0.10)   # how far the art slides per pixel the p
 const DIM := Color(0.9, 0.9, 0.92)
 
 var player: Node2D
+var focus_fn: Callable   # optional: returns the point the art should follow
 var _sprite: Sprite2D
 var _size := Vector2.ZERO
 
@@ -48,11 +49,23 @@ func _process(_d: float) -> void:
 
 func _update() -> void:
 	var p := ROOM / 2.0
-	if player != null and is_instance_valid(player):
-		p = player.position
+	if focus_fn.is_valid():
+		p = focus_fn.call()
+	else:
+		if player != null and is_instance_valid(player):
+			p = player.position
 	var slack := _size - ROOM
 	var off := (p - ROOM / 2.0) * PARALLAX
 	# centred horizontally; vertically biased low so the ground area stays in view
 	var x := -slack.x / 2.0 - off.x
 	var y := -slack.y * 0.55 - off.y
 	_sprite.position = Vector2(clampf(x, -slack.x, 0.0), clampf(y, -slack.y, 0.0))
+
+## Backdrop for an arbitrary image that follows whatever point focus_fn returns.
+static func make_from_file(path: String, focus: Callable) -> Backgrounds:
+	if not ResourceLoader.exists(path):
+		return null
+	var bg := Backgrounds.new()
+	bg.focus_fn = focus
+	bg._setup(load(path))
+	return bg
