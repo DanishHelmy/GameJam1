@@ -495,13 +495,7 @@ func _draw() -> void:
 	var data: Dictionary = LevelsData.LEVELS[level_i]
 	draw_string(font, Vector2(16, 24), "Level %d: %s" % [level_i + 1, data["name"]], HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color.WHITE)
 	draw_string(font, Vector2(16, 700), data["hint"], HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(0.8, 0.8, 0.8))
-	var x := 700.0
-	for l in ["leg", "arm", "eye", "grapple", "jet"]:
-		var have: bool = owned.has(l)
-		draw_rect(Rect2(x - 4, 2, 46, 46), Color(0, 0, 0, 0.45))
-		if not _draw_limb(l, Vector2(x + 19, 25), 38.0, Color.WHITE if have else Color(0.2, 0.2, 0.25, 0.7)):
-			draw_string(font, Vector2(x, 24), l.to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(1, 0.9, 0.4) if have else Color(0.4, 0.4, 0.4))
-		x += 58.0
+	HudSkin.limb_bar(self, owned, level_i)
 	if toast_t > 0.0:
 		draw_string(font, Vector2(16, 60), toast_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1, 0.9, 0.4))
 
