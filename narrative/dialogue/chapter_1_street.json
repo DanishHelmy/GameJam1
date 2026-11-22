@@ -1,8 +1,21 @@
 {
   "id": "chapter_1_street",
   "lines": [
-    { "speaker": "Announcement", "text": "Good morning, citizens. The evacuation is complete. Thank you for your cooperation." },
-    { "speaker": "", "text": "Nobody is listening." },
-    { "speaker": "", "text": "High in the tower, one window is lit." }
+    {
+      "speaker": "",
+      "text": "A voice repeats from the speakers: the evacuation is complete. Thank you for your cooperation."
+    },
+    {
+      "speaker": "",
+      "text": "No one is left to cooperate. Only me."
+    },
+    {
+      "speaker": "",
+      "text": "There is a light at the top of the tower. One window, still on."
+    },
+    {
+      "speaker": "",
+      "text": "I do not know why, but I want to be where that light is."
+    }
   ]
 }

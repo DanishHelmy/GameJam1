@@ -21,15 +21,65 @@ var room_id := ""
 var height := 720.0   # room height in px; taller rooms scroll vertically
 var cam_zoom := 1.0   # >1 = camera closer
 var cam_locked := false          # true while an escalator ride runs: camera stops following
+var tier_starts: Array = []       # child index where each tier begins (tiered rooms like the subway)
+var tier_floors: Array = []
+var tier_spawns: Array = []      # respawn point for each tier
+var riding := false              # true during an escalator ride (deaths are ignored)
+var active_tier := 0
+var cam_center_x := -1.0         # >=0: once the player passes cam_center_from, the camera locks to this x
+var cam_center_from := 0.0
 var cam_snap := Vector2.INF      # set to cut the camera to a new spot
+var fall_death := 0.0  # >0: landing after falling farther than this many px kills you
+var floor_y := 640.0  # street floor top (taller rooms move it down)
 var width := 1280.0   # room width in px; wider rooms scroll with the camera
 
 func build() -> void:
 	Rooms.build(self, room_id)
 
+## Call at the start of each tier while building: everything added after it belongs to that tier.
+func tier_mark() -> void:
+	tier_starts.append(get_child_count())
+
+func _tier_of(i: int, c: Node) -> int:
+	if c.has_meta("tier"):
+		return c.get_meta("tier")
+	var t := -1
+	for k in tier_starts.size():
+		if i >= tier_starts[k]:
+			t = k
+	return t
+
+func _tag_tiers() -> void:
+	var i := 0
+	for c in get_children():
+		var ct := _tier_of(i, c)
+		if ct >= 0 and not c.has_meta("tier"):
+			c.set_meta("tier", ct)
+		i += 1
+
+## Show only the nodes of tier t, so you only ever see one layer.
+func set_tier(t: int) -> void:
+	active_tier = t
+	if player != null and t < tier_spawns.size():
+		player.spawn_point = tier_spawns[t]
+	for c in get_children():
+		if c.has_meta("tier") and c is CanvasItem:
+			(c as CanvasItem).visible = (int(c.get_meta("tier")) == t)
+
+## Which tier a plate at height y belongs to.
+func active_tier_for(y: float) -> int:
+	var t := 0
+	for k in tier_floors.size():
+		if y >= tier_floors[k] - 40.0:
+			t = k
+	return t
+
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(bg_color)
 	build()
+	if tier_starts.size() > 0:
+		_tag_tiers()
+		set_tier(0)
 	_border()
 	player = preload("res://scenes/player.tscn").instantiate()
 	player.position = spawn
@@ -215,7 +265,8 @@ func _process(_d: float) -> void:
 	if xray_overlay:
 		xray_overlay.visible = on
 	for e in xray_nodes:
-		e.node.visible = on
+		var in_tier: bool = not e.node.has_meta("tier") or int(e.node.get_meta("tier")) == active_tier
+		e.node.visible = on and in_tier
 		if e.body:
 			for c in e.node.get_children():
 				if c is CollisionShape2D:
@@ -313,7 +364,7 @@ func saw(from: Vector2, to: Vector2, seconds := 2.0) -> void:
 	tw.tween_property(a, "position", from, seconds).set_trans(Tween.TRANS_SINE)
 
 ## Platform that shakes, then drops when stood on, and comes back later.
-func crumble(rect: Rect2) -> void:
+func crumble(rect: Rect2, respawn := 1.8) -> StaticBody2D:
 	var b := StaticBody2D.new()
 	b.collision_layer = 1
 	b.position = rect.position + rect.size / 2
@@ -349,11 +400,51 @@ func crumble(rect: Rect2) -> void:
 		v.position.x = -rect.size.x / 2
 		s.set_deferred("disabled", true)
 		b.visible = false
-		await get_tree().create_timer(1.8).timeout
+		await get_tree().create_timer(respawn).timeout
 		s.set_deferred("disabled", false)
 		b.visible = true
 		state.busy = false)
 	add_child(b)
+	return b
+
+## Steel beam spanning from one structure to another, with rivets. Hanging platforms attach to it.
+func hang_bar(x1: float, x2: float, y: float) -> void:
+	deco(Rect2(x1, y, x2 - x1, 14), Color("56616f"), -2)
+	deco(Rect2(x1, y + 14, x2 - x1, 4), Color("2a323c"), -2)
+	for bx in range(int(x1) + 20, int(x2), 60):
+		deco(Rect2(bx, y + 4, 5, 5), Color("2a323c"), -1)
+	for bx in range(int(x1), int(x2), 180):
+		deco(Rect2(bx, y + 18, 8, 26), Color("56616f"), -2)          # hanger lugs
+
+## Rickety plank platform hanging from the bar at `bar_y` by two chains. kind: "crumble" or "mover".
+func hanging(x: float, y: float, w: float, bar_y: float, kind := "crumble") -> void:
+	var rect := Rect2(x, y, w, 14)
+	var body: Node2D
+	if kind == "mover":
+		body = mover(rect, Vector2(0, -50), 2.2)
+	elif kind == "fragile":
+		body = crumble(rect, 4.5)          # breaks fast, stays gone ~5s
+		(body.get_child(1) as ColorRect).color = Color("6e4f35")
+	else:
+		body = crumble(rect)
+	var top := bar_y + 18.0
+	for cx in [10.0, w - 12.0]:
+		var n := int((y - top) / 14.0)
+		for i in n:
+			var link := ColorRect.new()
+			link.color = Color("8794a3") if i % 2 == 0 else Color("5e6978")
+			link.size = Vector2(3, 10)
+			link.position = Vector2(cx - w / 2.0, -7.0 - (i + 1) * 14.0 + 14.0 - 7.0 * 0)
+			link.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			link.z_index = -2
+			body.add_child(link)
+	for i in 3:                                                      # plank seams
+		var seam := ColorRect.new()
+		seam.color = Color("3d3226")
+		seam.size = Vector2(2, 14)
+		seam.position = Vector2(-w / 2.0 + (i + 1) * w / 4.0, -7.0)
+		seam.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		body.add_child(seam)
 
 # ---------------------------------------------------------------- sketch-level helpers
 var winds: Array = []   # [{rect, accel}]
@@ -374,6 +465,7 @@ func mover(rect: Rect2, delta: Vector2, seconds := 2.5) -> AnimatableBody2D:
 	v.position = -rect.size / 2
 	b.add_child(v)
 	add_child(b)
+	b.set_meta("delta", delta)
 	var tw := b.create_tween().set_loops()
 	tw.tween_property(b, "position", b.position + delta, seconds).set_trans(Tween.TRANS_SINE)
 	tw.tween_property(b, "position", b.position, seconds).set_trans(Tween.TRANS_SINE)
@@ -418,6 +510,7 @@ func _physics_process(delta: float) -> void:
 	if player == null or not is_instance_valid(player):
 		return
 	_update_key_buttons()
+	_update_divers(delta)
 	if player.is_on_floor():
 		return
 	for w in winds:
@@ -467,12 +560,402 @@ func deco(rect: Rect2, color: Color, z := -5) -> void:
 
 ## Abandoned car: solid body + cabin with wheels. x is the left edge, sitting on the floor (y=640).
 func car(x: float) -> void:
-	block(Rect2(x, 604, 190, 36))
-	block(Rect2(x + 40, 570, 100, 34))
-	deco(Rect2(x + 52, 576, 34, 22), Color("9fc3d6"), 1)
-	deco(Rect2(x + 94, 576, 34, 22), Color("9fc3d6"), 1)
-	deco(Rect2(x + 24, 626, 30, 14), Color("1b1b1b"), 2)
-	deco(Rect2(x + 136, 626, 30, 14), Color("1b1b1b"), 2)
+	var f := floor_y
+	block(Rect2(x, f - 36, 190, 36))
+	block(Rect2(x + 40, f - 70, 100, 34))
+	deco(Rect2(x + 52, f - 64, 34, 22), Color("9fc3d6"), 1)
+	deco(Rect2(x + 94, f - 64, 34, 22), Color("9fc3d6"), 1)
+	deco(Rect2(x + 24, f - 14, 30, 14), Color("1b1b1b"), 2)
+	deco(Rect2(x + 136, f - 14, 30, 14), Color("1b1b1b"), 2)
+
+## Platform parked at `rect` until the thrown arm hits the button at `button_pos`; then it shuttles by
+## `delta` and back forever (a bridge across a gap too wide to jump).
+func arm_mover(rect: Rect2, delta: Vector2, seconds: float, button_pos: Vector2) -> AnimatableBody2D:
+	var b := AnimatableBody2D.new()
+	b.collision_layer = 1
+	b.position = rect.position + rect.size / 2
+	var cs := CollisionShape2D.new()
+	var rs := RectangleShape2D.new()
+	rs.size = rect.size
+	cs.shape = rs
+	b.add_child(cs)
+	var v := ColorRect.new()
+	v.color = Color("e08a2e")
+	v.size = rect.size
+	v.position = -rect.size / 2
+	b.add_child(v)
+	for i in int(rect.size.x / 24.0):
+		var st := ColorRect.new()
+		st.color = Color("3a2a10")
+		st.size = Vector2(8, rect.size.y)
+		st.position = Vector2(-rect.size.x / 2 + 6 + i * 24.0, -rect.size.y / 2)
+		b.add_child(st)
+	add_child(b)
+	b.set_meta("delta", delta)
+	b.set_meta("arm_mover", true)
+	var start := b.position
+	shoot_button(button_pos, func():
+		var tw := b.create_tween().set_loops()
+		tw.tween_property(b, "position", start + delta, seconds).set_trans(Tween.TRANS_SINE)
+		tw.tween_property(b, "position", start, seconds).set_trans(Tween.TRANS_SINE))
+	return b
+
+## Dress the ground as a proper street: asphalt road with dashed centre line, kerbs, sidewalks along the
+## building line, a crosswalk, lamp posts and hydrants. Purely visual (the floor block is separate).
+func street_ground(x1: float, x2: float, sidewalk_to: float = 0.0) -> void:
+	var f := floor_y
+	deco(Rect2(x1, f, x2 - x1, 80), Color("2b2f36"), 1)                          # asphalt body
+	deco(Rect2(x1, f, x2 - x1, 5), Color("3a3f48"), 2)                           # road surface edge
+	for dx in range(int(x1) + 20, int(x2), 120):
+		deco(Rect2(dx, f + 38, 60, 6), Color("e8c547"), 2)                       # dashed centre line
+	deco(Rect2(x1, f + 74, x2 - x1, 6), Color("1c1f24"), 2)                      # lower edge
+	# sidewalk strip along the base of the buildings (raised kerb look, drawn on the floor line)
+	if sidewalk_to > x1:
+		deco(Rect2(x1, f - 6, sidewalk_to - x1, 6), Color("8a8f98"), 2)
+		deco(Rect2(x1, f - 6, sidewalk_to - x1, 2), Color("b5bac2"), 3)
+	# crosswalk
+	for i in 8:
+		deco(Rect2(x1 + 330 + i * 18, f, 10, 34), Color("d8dbe0"), 2)
+	# lamp posts and hydrants
+	for lx in range(int(x1) + 140, int(x2), 420):
+		deco(Rect2(lx, f - 150, 5, 150), Color("3c434d"), 0)
+		deco(Rect2(lx, f - 150, 34, 5), Color("3c434d"), 0)
+		deco(Rect2(lx + 26, f - 145, 14, 8), Color("f4e3a0"), 1)
+	for hx in range(int(x1) + 300, int(x2), 640):
+		deco(Rect2(hx, f - 22, 14, 22), Color("b03a2e"), 1)
+		deco(Rect2(hx - 3, f - 18, 20, 5), Color("b03a2e"), 1)
+
+## Solid platform with a colour strip on top so a climbing route reads clearly (tower paths).
+func path_platform(rect: Rect2, color: Color) -> void:
+	block(rect)
+	deco(Rect2(rect.position.x, rect.position.y, rect.size.x, 5), color, 3)
+
+## Mover tinted in a route colour.
+func path_mover(rect: Rect2, delta: Vector2, seconds: float, color: Color) -> void:
+	var b := mover(rect, delta, seconds)
+	(b.get_child(1) as ColorRect).color = color
+
+## Brown wooden plank: stand on it and after `seconds` it breaks (shaking for the last second), then returns
+## after `back` seconds. Step off before it breaks and the timer resets.
+func timed_plank(rect: Rect2, seconds := 5.0, back := 4.0) -> void:
+	var b := StaticBody2D.new()
+	b.collision_layer = 1
+	b.position = rect.position + rect.size / 2
+	var cs := CollisionShape2D.new()
+	var rs := RectangleShape2D.new()
+	rs.size = rect.size
+	cs.shape = rs
+	b.add_child(cs)
+	var v := ColorRect.new()
+	v.color = Color("8a5a2b")
+	v.size = rect.size
+	v.position = -rect.size / 2
+	b.add_child(v)
+	for i in 3:
+		var seam := ColorRect.new()
+		seam.color = Color("4a2f14")
+		seam.size = Vector2(2, rect.size.y)
+		seam.position = Vector2(-rect.size.x / 2 + (i + 1) * rect.size.x / 4.0, -rect.size.y / 2)
+		b.add_child(seam)
+	var sense := Area2D.new()
+	sense.collision_layer = 0
+	sense.collision_mask = 8
+	sense.position = Vector2(0, -rect.size.y / 2 - 6)
+	var ss := CollisionShape2D.new()
+	var sr := RectangleShape2D.new()
+	sr.size = Vector2(rect.size.x - 6, 12)
+	ss.shape = sr
+	sense.add_child(ss)
+	b.add_child(sense)
+	add_child(b)
+	var st := {"t": 0.0, "gone": false}
+	var tmr := Timer.new()
+	tmr.wait_time = 0.05
+	tmr.autostart = true
+	tmr.timeout.connect(func():
+		if st.gone:
+			return
+		if sense.overlaps_body(player):
+			st.t += 0.05
+			if st.t > seconds - 1.0:
+				v.position.x = -rect.size.x / 2 + sin(st.t * 60.0) * 2.5
+			if st.t >= seconds:
+				st.gone = true
+				v.position.x = -rect.size.x / 2
+				cs.set_deferred("disabled", true)
+				b.visible = false
+				await get_tree().create_timer(back).timeout
+				cs.set_deferred("disabled", false)
+				b.visible = true
+				st.t = 0.0
+				st.gone = false
+		else:
+			st.t = maxf(st.t - 0.1, 0.0))
+	b.add_child(tmr)
+
+## Distant city skyline for the ending: lit windows come on one by one when you call city_lights_on().
+var city_windows: Array = []
+func city_backdrop(rect: Rect2) -> void:
+	deco(rect, Color("2e1f4d"), -20)
+	var cols := [Color("2e1f4d"), Color("5b2a6e"), Color("a33a74"), Color("e0575d"), Color("f2894f"), Color("f7b955")]
+	var n := 12
+	for i in n:
+		var t := float(i) / (n - 1)
+		var idx := t * (cols.size() - 1)
+		var c: Color = (cols[int(floor(idx))] as Color).lerp(cols[mini(int(floor(idx)) + 1, cols.size() - 1)], idx - floor(idx))
+		deco(Rect2(rect.position.x, rect.position.y + rect.size.y * t * 0.8, rect.size.x, rect.size.y * 0.8 / n + 1), c, -19)
+	deco(Rect2(rect.position.x + rect.size.x * 0.62 - 50, rect.position.y + rect.size.y * 0.62 - 50, 100, 100), Color("fff0b0"), -18)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	var x := rect.position.x
+	while x < rect.end.x:
+		var bw := rng.randf_range(60.0, 130.0)
+		var bh := rng.randf_range(120.0, 330.0)
+		var top := rect.end.y - bh
+		deco(Rect2(x, top, bw, bh), Color("160f22"), -17)
+		for wy in range(int(top) + 14, int(rect.end.y) - 10, 28):
+			for wx in range(int(x) + 10, int(x + bw) - 12, 22):
+				if rng.randf() < 0.55:
+					var wv := ColorRect.new()
+					wv.color = Color("f4d27a")
+					wv.size = Vector2(10, 14)
+					wv.position = Vector2(wx, wy)
+					wv.z_index = -16
+					wv.modulate.a = 0.0
+					wv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+					add_child(wv)
+					city_windows.append(wv)
+		x += bw + rng.randf_range(4.0, 18.0)
+
+func city_lights_on(total_time := 5.0) -> void:
+	city_windows.shuffle()
+	var n := city_windows.size()
+	for i in n:
+		var wv: ColorRect = city_windows[i]
+		var tw := create_tween()
+		tw.tween_interval(total_time * float(i) / float(maxi(n, 1)))
+		tw.tween_property(wv, "modulate:a", 1.0, 0.6)
+
+## Train that pulls into the station at the start of the level: it slides in from off-screen left carrying the
+## player, brakes, and stops at `rect`. Input is locked until it has stopped.
+func train_arrival(rect: Rect2) -> void:
+	var start_x := rect.position.x - 1100.0
+	var tb := AnimatableBody2D.new()
+	tb.collision_layer = 1
+	tb.position = Vector2(start_x + rect.size.x / 2.0, rect.end.y + 4.0)      # floor of the train is level with the ground
+	var cs := CollisionShape2D.new()
+	var rs := RectangleShape2D.new()
+	rs.size = Vector2(rect.size.x, 12)
+	cs.shape = rs
+	tb.add_child(cs)
+	var body := ColorRect.new()
+	body.color = Color("5d6d7e")
+	body.size = Vector2(rect.size.x, rect.size.y)
+	body.position = Vector2(-rect.size.x / 2.0, -rect.size.y - 4.0)
+	body.z_index = -2
+	tb.add_child(body)
+	var stripe := ColorRect.new()
+	stripe.color = Color("e74c3c")
+	stripe.size = Vector2(rect.size.x, 8)
+	stripe.position = Vector2(-rect.size.x / 2.0, -28)
+	stripe.z_index = -2
+	tb.add_child(stripe)
+	var wx := 20.0
+	while wx < rect.size.x - 60.0:
+		var w := ColorRect.new()
+		w.color = Color("f7dc6f")
+		w.size = Vector2(46, 34)
+		w.position = Vector2(-rect.size.x / 2.0 + wx, -rect.size.y + 14.0)
+		w.z_index = -1
+		tb.add_child(w)
+		wx += 80.0
+	var lamp := ColorRect.new()
+	lamp.color = Color("fff2a8")
+	lamp.size = Vector2(10, 14)
+	lamp.position = Vector2(rect.size.x / 2.0 - 12.0, -56)
+	lamp.z_index = -1
+	tb.add_child(lamp)
+	for wxx in [30.0, rect.size.x - 60.0, rect.size.x / 2.0 - 15.0]:
+		var wh := ColorRect.new()
+		wh.color = Color("1b1b1b")
+		wh.size = Vector2(30, 12)
+		wh.position = Vector2(-rect.size.x / 2.0 + wxx, -10)
+		wh.z_index = -1
+		tb.add_child(wh)
+	add_child(tb)
+	deco(Rect2(rect.position.x - 1200.0, rect.end.y, rect.size.x + 1300.0, 5), Color("39424e"), 2)   # rails
+	call_deferred("_run_train_arrival", tb, start_x, rect)
+
+func _run_train_arrival(tb: AnimatableBody2D, start_x: float, rect: Rect2) -> void:
+	var off := Vector2(rect.size.x * 0.45, -28.0)
+	player.set_physics_process(false)
+	player.velocity = Vector2.ZERO
+	player.global_position = tb.position + off
+	var tw := create_tween()
+	tw.tween_method(func(v: float):
+		tb.position.x = v
+		player.global_position = tb.position + off,
+		start_x + rect.size.x / 2.0, rect.position.x + rect.size.x / 2.0, 4.2).set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
+	await tw.finished
+	await get_tree().create_timer(0.5).timeout
+	player.spawn_point = Vector2(rect.position.x + rect.size.x * 0.55, rect.end.y - 30.0)
+	player.set_physics_process(true)
+
+## Wall-mounted launcher: every `interval` seconds it fires a spike across the room in direction dir (+1/-1).
+func spike_spawner(pos: Vector2, dir: int, interval := 3.2, speed := 170.0, travel := 640.0) -> void:
+	deco(Rect2(pos.x - 14, pos.y - 18, 28, 36), Color("5d6d7e"), 2)
+	deco(Rect2(pos.x - 14 + (22 if dir > 0 else 0), pos.y - 10, 6, 20), Color("3c434d"), 3)   # barrel facing the room
+	deco(Rect2(pos.x - 5 + dir * 4, pos.y - 7, 10, 14), Color("c0392b"), 3)
+	var t := Timer.new()
+	t.wait_time = interval
+	t.one_shot = false
+	t.autostart = true
+	t.timeout.connect(func():
+		var a := Area2D.new()
+		a.position = pos + Vector2(dir * 26.0, 0)
+		var sh := CollisionShape2D.new()
+		var rc := RectangleShape2D.new()
+		rc.size = Vector2(24, 14)
+		sh.shape = rc
+		a.add_child(sh)
+		var poly := Polygon2D.new()
+		poly.polygon = PackedVector2Array([Vector2(-12 * dir, -8), Vector2(12 * dir, 0), Vector2(-12 * dir, 8)])
+		poly.color = Color("d9534f")
+		a.add_child(poly)
+		_kill_zone(a)
+		add_child(a)
+		var tw := a.create_tween()
+		tw.tween_property(a, "position:x", pos.x + dir * travel, travel / speed)
+		tw.tween_callback(a.queue_free))
+	add_child(t)
+
+## Tall solid building with window grid. Balconies attach to its faces.
+func tower_building(rect: Rect2, color := Color("2e3744")) -> void:
+	block(rect)
+	deco(rect, color, 0)
+	for wy in range(int(rect.position.y) + 30, int(rect.end.y) - 50, 70):
+		for wx in range(int(rect.position.x) + 28, int(rect.end.x) - 40, 60):
+			deco(Rect2(wx, wy, 28, 36), Color("4b5d75") if (wx + wy) % 3 != 0 else Color("e8d98a"), 1)
+	deco(Rect2(rect.position.x - 6, rect.position.y - 8, rect.size.x + 12, 8), Color("1b222c"), 2)
+
+## Stack of balconies bolted to a building face. side=-1: sticks out left of x_face, +1: right.
+## Runs from y_from (low) up to y_to (high) in steps of `step` (<=75 so every hop is a jump).
+func balcony_stack(x_face: float, side: int, y_from: float, y_to: float, w := 90.0, step := 70.0) -> void:
+	# Even steps so the LAST balcony sits exactly at y_to (one jump below the roof).
+	var n := int(ceil((y_from - y_to) / step))
+	var st := (y_from - y_to) / float(maxi(n, 1))
+	for i in range(n + 1):
+		var y := y_from - st * i
+		var ww := w if i % 2 == 0 else w * 0.75
+		balcony(x_face - ww if side < 0 else x_face, y, ww)
+
+## Balcony stuck to a building face: slab (solid), railing, and support brackets underneath.
+func balcony(x: float, y: float, w: float) -> void:
+	var body := StaticBody2D.new()
+	body.collision_layer = 1
+	body.position = Vector2(x + w / 2.0, y + 7.0)
+	var cs := CollisionShape2D.new()
+	var rs := RectangleShape2D.new()
+	rs.size = Vector2(w, 14)
+	cs.shape = rs
+	cs.one_way_collision = true            # jump up through it from below, like a real balcony
+	body.add_child(cs)
+	var v := ColorRect.new()
+	v.color = Color("7d8794")
+	v.size = Vector2(w, 14)
+	v.position = Vector2(-w / 2.0, -7.0)
+	body.add_child(v)
+	add_child(body)
+	deco(Rect2(x - 2, y + 14, w + 4, 4), Color("1f2630"), -1)                    # underside lip
+	deco(Rect2(x, y - 30, w, 3), Color("6b7787"), -1)                            # top rail
+	for px in range(int(x), int(x + w) + 1, 16):
+		deco(Rect2(px, y - 28, 3, 28), Color("525c6b"), -1)                      # railing posts
+	for bx in [x + 10.0, x + w - 22.0]:
+		var br := Polygon2D.new()                                                # brackets
+		br.polygon = PackedVector2Array([Vector2(bx, y + 18), Vector2(bx + 12, y + 18), Vector2(bx + 12, y + 40)])
+		br.color = Color("1f2630")
+		br.z_index = -1
+		add_child(br)
+
+## Wall across the tier with a small door at its foot. The arm-shot button is mounted on the wall face
+## (left side), so throw the arm at the wall to open the door. `wall` bottom edge is the floor.
+func wall_door(wall: Rect2, door_h := 100.0) -> void:
+	var floor_y := wall.end.y
+	block(Rect2(wall.position.x, wall.position.y, wall.size.x, wall.size.y - door_h))   # wall above the door
+	var open := gate(Rect2(wall.position.x + 4, floor_y - door_h, wall.size.x - 8, door_h))
+	deco(Rect2(wall.position.x, floor_y - door_h - 4, wall.size.x, 4), Color("0d141b"), 3)   # door frame lintel
+	# button panel bolted to the wall face
+	var bx := wall.position.x
+	deco(Rect2(bx - 14, floor_y - door_h - 62, 14, 44), Color("5d6d7e"), 2)
+	shoot_button(Vector2(bx - 22, floor_y - door_h - 40), open)
+
+## Building you can walk through: solid slabs with open horizontal corridors (bands [top_y, bottom_y]).
+## rect bottom edge is the floor. Corridors run through from side to side.
+func walk_building(rect: Rect2, corridors: Array, body_color := Color("2e3744")) -> void:
+	var cs := corridors.duplicate()
+	cs.sort_custom(func(p, q): return p[0] < q[0])
+	var y := rect.position.y
+	var slabs: Array = []
+	for c in cs:
+		if c[0] > y:
+			slabs.append(Rect2(rect.position.x, y, rect.size.x, c[0] - y))
+		y = c[1]
+	if y < rect.end.y:
+		slabs.append(Rect2(rect.position.x, y, rect.size.x, rect.end.y - y))
+	for sl in slabs:
+		block(sl)
+		deco(sl, body_color, 0)
+		for wy in range(int(sl.position.y) + 14, int(sl.end.y) - 30, 56):
+			for wx in range(int(sl.position.x) + 20, int(sl.end.x) - 40, 56):
+				deco(Rect2(wx, wy, 26, 30), Color("4b5d75"), 1)
+	for c in cs:
+		deco(Rect2(rect.position.x, c[0], rect.size.x, c[1] - c[0]), Color("12171e"), -3)   # dark interior
+		for lx in range(int(rect.position.x) + 50, int(rect.end.x) - 20, 100):
+			deco(Rect2(lx, c[0] + 6, 30, 5), Color("e8d98a"), -2)                         # ceiling lights
+	deco(Rect2(rect.position.x - 6, rect.position.y - 8, rect.size.x + 12, 8), Color("1b222c"), 2)   # roof lip
+
+## Wall from ceiling to floor with an elevator door at its foot (opened by the arm-shot button on its face).
+func elevator_wall(x: float, w: float, door_h := 110.0) -> void:
+	var f := floor_y
+	var open := gate(Rect2(x + 3, f - door_h, w - 6, door_h))
+	block(Rect2(x, 0, w, f - door_h))
+	block(Rect2(x, f - door_h - 1, w, 1))
+	deco(Rect2(x, 0, w, f - door_h), Color("3a4452"), 0)
+	deco(Rect2(x - 5, f - door_h - 8, w + 10, 8), Color("e8c547"), 3)
+	deco(Rect2(x + w / 2 - 14, f - door_h - 40, 28, 24), Color("1b222c"), 3)         # floor indicator
+	deco(Rect2(x + w / 2 - 8, f - door_h - 34, 16, 12), Color("e8c547"), 4)
+	deco(Rect2(x - 14, f - door_h - 62, 14, 44), Color("5d6d7e"), 2)                 # button panel
+	shoot_button(Vector2(x - 22, f - door_h - 40), open)
+
+## Elevator cab: stepping in closes the doors and it descends, then the next level loads.
+func elevator_exit(rect: Rect2) -> void:
+	deco(Rect2(rect.position.x - 20, rect.position.y - 60, rect.size.x + 40, rect.size.y + 60), Color("2b3138"), -3)
+	var area := Area2D.new()
+	area.collision_layer = 0
+	area.collision_mask = 8
+	area.position = rect.position + rect.size / 2
+	var sh := CollisionShape2D.new()
+	var rs := RectangleShape2D.new()
+	rs.size = rect.size
+	sh.shape = rs
+	area.add_child(sh)
+	add_child(area)
+	var label := _make_prompt(area, Vector2(-70, -rect.size.y / 2 - 34))
+	label.text = "Press [Enter] to go down"
+	elev = {"inside": false, "busy": false, "label": label, "rect": rect}
+
+var elev := {}
+
+func _elevator_go() -> void:
+	elev.busy = true
+	elev.label.visible = false
+	player.set_physics_process(false)
+	player.velocity = Vector2.ZERO
+	var tw := create_tween()
+	tw.tween_property(player, "global_position:y", player.global_position.y + 160.0, 1.4)
+	await get_tree().create_timer(0.4).timeout
+	await _fade_to(1.0, 0.9)
+	exited.emit()
 
 # ---------------------------------------------------------------- keyed buttons, gates, train
 const KEY_POOL := [KEY_G, KEY_H, KEY_J, KEY_K, KEY_L, KEY_U, KEY_I, KEY_O, KEY_P, KEY_B, KEY_N, KEY_M, KEY_T, KEY_Y]
@@ -504,7 +987,7 @@ func _make_prompt(parent: Node2D, at: Vector2) -> Label:
 	return l
 
 ## Floor button: stand on it and press its (random) key to trigger `cb`.
-func key_button(pos: Vector2, cb: Callable, color := Color("e67e22"), fixed_key := -1) -> void:
+func key_button(pos: Vector2, cb: Callable, color := Color("e67e22"), fixed_key := -1, on_wall := false) -> void:
 	var a := Area2D.new()
 	a.collision_layer = 0
 	a.collision_mask = 8
@@ -518,6 +1001,17 @@ func key_button(pos: Vector2, cb: Callable, color := Color("e67e22"), fixed_key 
 	v.color = color
 	v.size = Vector2(44, 10)
 	v.position = Vector2(-22, 20)
+	if on_wall:
+		# panel mounted on the background wall behind the player
+		var plate := ColorRect.new()
+		plate.color = Color("2a323c")
+		plate.size = Vector2(40, 56)
+		plate.position = Vector2(-20, -44)
+		plate.z_index = -1
+		a.add_child(plate)
+		v.size = Vector2(24, 24)
+		v.position = Vector2(-12, -34)
+		v.z_index = 0
 	a.add_child(v)
 	var k: int = fixed_key if fixed_key >= 0 else _take_key()
 	var l := _make_prompt(a, Vector2(-40, -34))
@@ -535,6 +1029,13 @@ func key_button(pos: Vector2, cb: Callable, color := Color("e67e22"), fixed_key 
 	kbuttons.append(e)
 
 func _update_key_buttons() -> void:
+	if not elev.is_empty() and not elev.busy:
+		# only counts once the whole body is inside the cab
+		var body := Rect2(player.global_position - Vector2(12, 22), Vector2(24, 44))
+		elev.inside = (elev.rect as Rect2).encloses(body)
+		elev.label.visible = elev.inside
+		if elev.inside and Input.is_physical_key_pressed(KEY_ENTER):
+			_elevator_go()
 	for e in kbuttons:
 		if e.inside and not e.done and Input.is_physical_key_pressed(e.key):
 			e.done = true
@@ -574,11 +1075,15 @@ func gate(rect: Rect2) -> Callable:
 		tw.tween_property(v, "size:y", 0.0, 0.7).set_trans(Tween.TRANS_QUAD)
 
 ## Button that powers the train. All `train_needed` of them must be pressed.
+var tier_unlocked := {}      # tier index -> true once that tier's O button was pressed
+
 func train_button(pos: Vector2) -> void:
 	train_needed += 1
+	var t := maxi(tier_starts.size() - 1, 0)
 	key_button(pos, func():
 		train_power += 1
-		_refresh_train_label(), Color("3498db"), KEY_O)
+		tier_unlocked[t] = true
+		_refresh_train_label(), Color("3498db"), KEY_O, true)
 
 func _refresh_train_label() -> void:
 	if train_label == null:
@@ -753,7 +1258,7 @@ func _enemy_area(pos: Vector2, size: Vector2) -> Area2D:
 	return a
 
 ## Rat: scurries back and forth along the floor between two x positions.
-func rat(from: Vector2, to: Vector2, seconds := 2.5) -> void:
+func rat(from: Vector2, to: Vector2, seconds := 2.5, once := false, drop := 0.0) -> Area2D:
 	var a := _enemy_area(from, Vector2(26, 16))
 	var body := Polygon2D.new()
 	body.polygon = PackedVector2Array([Vector2(-13, 8), Vector2(-10, -4), Vector2(2, -8), Vector2(12, -2), Vector2(14, 8)])
@@ -768,14 +1273,30 @@ func rat(from: Vector2, to: Vector2, seconds := 2.5) -> void:
 	eye.size = Vector2(3, 3)
 	eye.position = Vector2(7, -4)
 	a.add_child(eye)
+	if once:
+		if to.x < from.x:
+			a.scale.x = -1.0
+		var tw1 := a.create_tween()
+		if drop > 0.0:
+			# comes out of the sewer pipe in the background wall, drops to the floor, then runs
+			a.z_index = -3
+			a.modulate.a = 0.0
+			a.position = from + Vector2(0, -drop)
+			tw1.tween_property(a, "modulate:a", 1.0, 0.2)
+			tw1.tween_property(a, "position:y", from.y, 0.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+			tw1.tween_callback(func(): a.z_index = 0)
+		tw1.tween_property(a, "position", to, seconds)
+		tw1.tween_callback(a.queue_free)
+		return a
 	var tw := a.create_tween().set_loops()
 	tw.tween_property(a, "position", to, seconds)
 	tw.tween_callback(func(): a.scale.x = -1.0)
 	tw.tween_property(a, "position", from, seconds)
 	tw.tween_callback(func(): a.scale.x = 1.0)
+	return a
 
 ## Bird: flies back and forth along a wavy path.
-func bird(from: Vector2, to: Vector2, seconds := 3.0, wave := 40.0) -> void:
+func bird(from: Vector2, to: Vector2, seconds := 3.0, wave := 40.0, once := false, manual := false) -> Area2D:
 	var a := _enemy_area(from, Vector2(28, 18))
 	var wing_l := Polygon2D.new()
 	wing_l.polygon = PackedVector2Array([Vector2(0, 0), Vector2(-16, -10), Vector2(-6, 4)])
@@ -798,7 +1319,18 @@ func bird(from: Vector2, to: Vector2, seconds := 3.0, wave := 40.0) -> void:
 	flap.parallel().tween_property(wing_r, "scale:y", -1.0, 0.18)
 	flap.tween_property(wing_l, "scale:y", 1.0, 0.18)
 	flap.parallel().tween_property(wing_r, "scale:y", 1.0, 0.18)
+	if manual:
+		return a            # caller moves it (diving roof birds)
 	var base_y := from.y
+	if once:
+		# one pass, then it is gone (used by spawners)
+		if to.x < from.x:
+			a.scale.x = -1.0
+		var tw1 := a.create_tween()
+		tw1.tween_method(func(t: float):
+			a.position = Vector2(lerpf(from.x, to.x, t), base_y + sin(t * TAU * 2.0) * wave), 0.0, 1.0, seconds)
+		tw1.tween_callback(a.queue_free)
+		return a
 	var tw := a.create_tween().set_loops()
 	tw.tween_method(func(t: float):
 		a.position = Vector2(lerpf(from.x, to.x, t), base_y + sin(t * TAU * 2.0) * wave), 0.0, 1.0, seconds)
@@ -806,6 +1338,150 @@ func bird(from: Vector2, to: Vector2, seconds := 3.0, wave := 40.0) -> void:
 	tw.tween_method(func(t: float):
 		a.position = Vector2(lerpf(to.x, from.x, t), base_y + sin(t * TAU * 2.0) * wave), 0.0, 1.0, seconds)
 	tw.tween_callback(func(): a.scale.x = 1.0)
+	return a
+
+## A new bird flies across from `from` to `to` every `interval` seconds (first one right away).
+func bird_spawner(from: Vector2, to: Vector2, seconds := 3.5, wave := 10.0, interval := 10.0) -> void:
+	_spawner(func(): bird(from, to, seconds, wave, true), interval)
+
+## A new rat runs from `from` to `to` every `interval` seconds (first one right away).
+func rat_spawner(from: Vector2, to: Vector2, seconds := 4.0, interval := 10.0) -> void:
+	var drop := 90.0
+	var py := from.y - drop - 14.0
+	# sewer pipe on the background wall: a rusty elbow with a dark mouth
+	deco(Rect2(from.x - 60, py - 22, 90, 44), Color("3a4a55"), -4)
+	deco(Rect2(from.x - 60, py - 22, 90, 6), Color("55687a"), -4)
+	deco(Rect2(from.x - 28, py - 28, 56, 56), Color("4a5d6b"), -4)
+	deco(Rect2(from.x - 20, py - 20, 40, 40), Color("0a0f14"), -4)
+	deco(Rect2(from.x - 6, py + 20, 12, 8), Color("2f6b4a"), -4)           # slime drip
+	_spawner(func(): rat(from, to, seconds, true, drop), interval)
+
+func _spawner(spawn_fn: Callable, interval: float) -> void:
+	var t := Timer.new()
+	t.wait_time = interval
+	t.one_shot = false
+	t.autostart = true
+	t.timeout.connect(spawn_fn)
+	add_child(t)
+	spawn_fn.call()
+
+# ---------------------------------------------------------------- diving roof birds
+var roof_birds: Array = []        # [{node, roof, state, t, target}]; state 0 track, 1 dive, 2 rise
+const ROOF_BIRD_CAP := 5
+
+## Every `interval` seconds a bird spawns high above `roof`. It tracks the player, dives at them, and if it
+## misses it climbs back up (it never leaves by itself). At most ROOF_BIRD_CAP roof birds exist at once:
+## when a new one spawns past the cap, the oldest goes away.
+func roof_bird_spawner(roof: Rect2, interval := 10.0) -> void:
+	_spawner(func(): _spawn_roof_bird(roof), interval)
+
+func _spawn_roof_bird(roof: Rect2) -> void:
+	roof_birds = roof_birds.filter(func(e): return is_instance_valid(e.node))
+	while roof_birds.size() >= ROOF_BIRD_CAP:
+		var old = roof_birds.pop_front()
+		old.node.queue_free()
+	var x := randf_range(roof.position.x + 30.0, roof.end.x - 30.0)
+	var y := roof.position.y - 340.0
+	var a := bird(Vector2(x, y), Vector2(x, y), 1.0, 0.0, false, true)
+	roof_birds.append({"node": a, "roof": roof, "state": 0, "t": randf_range(1.2, 2.2), "target": Vector2.ZERO})
+
+func _update_divers(delta: float) -> void:
+	for e in roof_birds:
+		var n: Area2D = e.node
+		if not is_instance_valid(n):
+			continue
+		var roof: Rect2 = e.roof
+		var hover_y := roof.position.y - 260.0
+		var pp: Vector2 = player.global_position
+		if e.state == 0:
+			var tx := clampf(pp.x, roof.position.x - 60.0, roof.end.x + 60.0)
+			n.position.x = move_toward(n.position.x, tx, 130.0 * delta)
+			n.position.y = move_toward(n.position.y, hover_y, 200.0 * delta)
+			if absf(tx - n.position.x) > 3.0:
+				n.scale.x = 1.0 if tx > n.position.x else -1.0
+			e.t -= delta
+			if e.t <= 0.0:
+				var near := absf(pp.x - n.position.x) < 260.0 and pp.y < roof.position.y + 40.0 and pp.y > hover_y - 100.0
+				if near:
+					e.state = 1
+					e.target = Vector2(pp.x, minf(pp.y, roof.position.y + 10.0))
+				else:
+					e.t = 0.4
+		elif e.state == 1:
+			var to: Vector2 = (e.target as Vector2) - n.position
+			n.rotation = to.angle() * 0.0
+			if to.length() < 10.0:
+				e.state = 2
+			else:
+				n.position += to.normalized() * minf(560.0 * delta, to.length())
+		else:
+			n.position.y = move_toward(n.position.y, hover_y, 220.0 * delta)
+			if absf(n.position.y - hover_y) < 2.0:
+				e.state = 0
+				e.t = randf_range(0.8, 1.6)
+
+# ---------------------------------------------------------------- lift that waits for you
+## Platform at `rect` that stays put until the player is really standing on it, then carries them down by
+## `drop`, waits, and returns to the top.
+func stand_lift(rect: Rect2, drop: float, down_time := 3.0) -> void:
+	var b := AnimatableBody2D.new()
+	b.collision_layer = 1
+	b.position = rect.position + rect.size / 2
+	b.set_meta("stand_lift", true)
+	var cs := CollisionShape2D.new()
+	var rs := RectangleShape2D.new()
+	rs.size = rect.size
+	cs.shape = rs
+	b.add_child(cs)
+	var v := ColorRect.new()
+	v.color = Color("e08a2e")
+	v.size = rect.size
+	v.position = -rect.size / 2
+	b.add_child(v)
+	for i in int(rect.size.x / 24.0):
+		var st2 := ColorRect.new()
+		st2.color = Color("3a2a10")
+		st2.size = Vector2(8, rect.size.y)
+		st2.position = Vector2(-rect.size.x / 2 + 6 + i * 24.0, -rect.size.y / 2)
+		b.add_child(st2)
+	var sensor := Area2D.new()
+	sensor.collision_layer = 0
+	sensor.collision_mask = 8
+	sensor.position = Vector2(0, -rect.size.y / 2 - 14)
+	var ss := CollisionShape2D.new()
+	var sr := RectangleShape2D.new()
+	sr.size = Vector2(rect.size.x - 16, 28)
+	ss.shape = sr
+	sensor.add_child(ss)
+	b.add_child(sensor)
+	add_child(b)
+	var top := b.position
+	var st := {"busy": false}
+	sensor.body_entered.connect(func(body):
+		if body != player or st.busy:
+			return
+		st.busy = true
+		var standing := false
+		var waited := 0.0
+		while waited < 0.8 and not standing:
+			await get_tree().create_timer(0.05).timeout
+			waited += 0.05
+			if not sensor.overlaps_body(player):
+				break
+			standing = player.is_on_floor() and player.global_position.y < b.position.y \
+				and absf(player.global_position.x - b.position.x) < rect.size.x / 2 - 8.0
+		if not standing:
+			st.busy = false
+			return
+		await get_tree().create_timer(0.35).timeout
+		var tw := create_tween()
+		tw.tween_property(b, "position", top + Vector2(0, drop), down_time).set_trans(Tween.TRANS_SINE)
+		await tw.finished
+		await get_tree().create_timer(2.0).timeout
+		var tw2 := create_tween()
+		tw2.tween_property(b, "position", top, down_time).set_trans(Tween.TRANS_SINE)
+		await tw2.finished
+		st.busy = false)
 
 ## Trap that is deadly all the time but only drawn while x-ray eyes are on.
 func hidden_trap(rect: Rect2) -> void:
@@ -965,14 +1641,57 @@ func _stripes(rect: Rect2, z := -3) -> Control:
 	tw.tween_callback(func(): holder.position.y = 0.0)
 	return panel
 
-## Open escalator shaft above the arrival spot (you slide in from out of frame).
-func arrival_shaft(rect: Rect2) -> void:
-	_stripes(rect)
+## Staircase going down-right from `a` to `b` (45 degrees): dark filled steps with lit treads.
+func _diag_shaft(a: Vector2, b: Vector2) -> Array:
+	var made: Array = []
+	var step := 30.0
+	var n := int(round((b.x - a.x) / step))
+	var pts := PackedVector2Array()
+	for i in n:
+		pts.append(a + Vector2(i * step, i * step))
+		pts.append(a + Vector2((i + 1) * step, i * step))
+	pts.append(b)
+	pts.append(Vector2(b.x, b.y + 36.0))
+	pts.append(Vector2(a.x, a.y + 36.0))
+	var poly := Polygon2D.new()
+	poly.polygon = pts
+	poly.color = Color("1a222c")
+	poly.z_index = -2
+	add_child(poly)
+	made.append(poly)
+	for i in n:
+		var t := ColorRect.new()
+		t.color = Color("7d8fa6")
+		t.position = a + Vector2(i * step, i * step)
+		t.size = Vector2(step, 5)
+		t.z_index = -1
+		t.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(t)
+		made.append(t)
+		var r := ColorRect.new()
+		r.color = Color("3b4a5c")
+		r.position = a + Vector2((i + 1) * step - 4, i * step + 5)
+		r.size = Vector2(4, step - 5)
+		r.z_index = -1
+		r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(r)
+		made.append(r)
+	return made
 
-## Escalator plate flush with the floor. Step on it: the camera freezes, you ride straight down out of
-## the bottom of the frame, the camera cuts to the next tier, and you slide in from above its left side.
+const ESC_DX := 330.0
+const ESC_DY := 330.0
+
+## Escalator plate flush with the floor. Step on it: the camera freezes and you ride diagonally down and to
+## the right until you leave the frame. The camera then cuts to the next tier (not visible until now) and you
+## slide in diagonally from out of frame at the upper left, down-right onto its floor.
 func escalator(plate: Rect2, dest_x: float, dest_floor_y: float) -> void:
-	var shaft := _stripes(Rect2(plate.position.x, plate.position.y, plate.size.x, 120), -4)
+	var top := Vector2(plate.position.x + plate.size.x / 2, plate.position.y)
+	_diag_shaft(top, top + Vector2(ESC_DX, ESC_DY))
+	var land := Vector2(dest_x, dest_floor_y - 22.0)
+	var arrival := _diag_shaft(Vector2(dest_x - ESC_DX, dest_floor_y - ESC_DY), Vector2(dest_x, dest_floor_y))   # arrival side
+	var next_tier := active_tier_for(plate.position.y) + 1
+	for n in arrival:
+		n.set_meta("tier", next_tier)
 	var body := StaticBody2D.new()
 	body.collision_layer = 1
 	body.position = plate.position + plate.size / 2
@@ -1004,33 +1723,55 @@ func escalator(plate: Rect2, dest_x: float, dest_floor_y: float) -> void:
 	sensor.add_child(ss)
 	add_child(sensor)
 	var st := {"busy": false}
+	var my_tier := active_tier_for(plate.position.y)
+	var lock_label := _make_prompt(sensor, Vector2(-90, -52))
+	lock_label.text = "Locked. Press [O] on the wall panel first"
+	lock_label.add_theme_font_size_override("font_size", 15)
+	v.color = Color("7a3b3b")                        # red until the O button unlocks it
+	var lock_timer := Timer.new()
+	lock_timer.wait_time = 0.1
+	lock_timer.autostart = true
+	lock_timer.timeout.connect(func():
+		if tier_unlocked.get(my_tier, false):
+			v.color = Color("e8c547")
+			lock_label.visible = false
+			lock_timer.queue_free())
+	add_child(lock_timer)
+	sensor.body_exited.connect(func(b):
+		if b == player and not tier_unlocked.get(my_tier, false):
+			lock_label.visible = false)
 	sensor.body_entered.connect(func(b):
 		if b != player or st.busy:
 			return
+		if not tier_unlocked.get(my_tier, false):
+			lock_label.visible = true                # shown while you stand on it
+			return
 		st.busy = true
+		riding = true
 		player.set_physics_process(false)
 		player.velocity = Vector2.ZERO
 		cam_locked = true
 		cs.set_deferred("disabled", true)
 		body.visible = false
-		var cx := plate.position.x + plate.size.x / 2
 		var tw := create_tween()
-		tw.tween_property(player, "global_position", Vector2(cx, plate.position.y + 330.0), 1.3).set_trans(Tween.TRANS_LINEAR)
+		tw.tween_property(player, "global_position", top + Vector2(ESC_DX, ESC_DY + 18.0), 1.4).set_trans(Tween.TRANS_LINEAR)
 		await tw.finished
 		# --- cut: next tier. The camera jumps while you are out of frame.
-		player.global_position = Vector2(dest_x, dest_floor_y - 345.0)
+		player.global_position = land - Vector2(ESC_DX, ESC_DY + 40.0)
 		player.spawn_point = Vector2(dest_x, dest_floor_y - 40.0)
 		cam_snap = Vector2(dest_x, dest_floor_y - 40.0)
+		set_tier(next_tier)
 		await get_tree().process_frame
 		await get_tree().process_frame
 		var tw2 := create_tween()
-		tw2.tween_property(player, "global_position", Vector2(dest_x, dest_floor_y - 22.0), 1.1).set_trans(Tween.TRANS_LINEAR)
+		tw2.tween_property(player, "global_position", land, 1.2).set_trans(Tween.TRANS_LINEAR)
 		await tw2.finished
 		cam_locked = false
+		riding = false
 		player.velocity = Vector2.ZERO
 		player.set_physics_process(true)
 		cs.set_deferred("disabled", false)
-		body.visible = true
+		body.visible = (active_tier == next_tier - 1)
 		st.busy = false)
 
 ## Walk into it to set your respawn point (small flag).

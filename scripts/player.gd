@@ -6,7 +6,8 @@ extends CharacterBody2D
 ##   Shift/X dash      (8 directions, one charge, refills on landing)
 ##   Left click grapple (aims at the mouse cursor)
 ##   Right click throw/recall the arm toward the cursor (kills enemies)
-##   E/V grapple       (aim with direction keys; hits walls, hooks and the thrown arm; pulls you in)
+##   E/V grapple       (aim with direction keys; ONLY green hooks and the thrown arm work. The arm pulls you in; green hooks let you SWING:
+##                      A/D pump, Up/Down rope length, Space or E to let go)
 ##   Q/C arm           (throw in aim direction; press again to recall; hold Down + Q to drop it)
 ##   F x-ray eyes (toggle; reveals hidden mechanisms)
 ##   R respawn
@@ -30,8 +31,9 @@ const PULL_MAX_TIME := 0.7
 const PULL_STOP_DIST := 30.0
 const PULL_EXIT_KEEP := 0.7             # fraction of pull speed kept on arrival
 const GRAPPLE_JUMP_GRACE := 0.18        # can jump just after a pull ends
+const GRAPPLE_DELAY := 0.5              # wait this long after a grapple ends before the next one
 
-const ARM_THROW_SPEED := 620.0
+const ARM_THROW_SPEED := 900.0   # reaches across a gap between buildings without feeling like a rocket
 
 var facing := 1
 var coyote := 0.0
@@ -44,11 +46,16 @@ var dash_left := 0.0
 var dash_dir := Vector2.RIGHT
 
 var can_grapple := true
+var grapple_cd := 0.0
 var pulling := false
 var pull_time := 0.0
 var anchor_pos := Vector2.ZERO
 var anchor_node: Node2D = null
 var grapple_grace := 0.0
+var swinging := false
+var sitting := false   # ending scene: sit on the ledge
+var air_top := INF   # highest point of the current fall (for rooms with fall_death)
+var rope_len := 0.0
 
 var grapple_by_mouse := false
 var arm_by_mouse := false
@@ -134,11 +141,18 @@ func _physics_process(delta: float) -> void:
 		coyote = COYOTE_TIME
 		if not dashing:
 			can_dash = true
-		if not pulling:
-			can_grapple = true
 	else:
 		coyote = maxf(coyote - delta, 0.0)
 	grapple_grace = maxf(grapple_grace - delta, 0.0)
+	# the grapple recharges by itself, GRAPPLE_DELAY after the last one ended (no need to land)
+	if pulling or swinging:
+		grapple_cd = GRAPPLE_DELAY
+		can_grapple = false
+	elif grapple_cd > 0.0:
+		grapple_cd = maxf(grapple_cd - delta, 0.0)
+		can_grapple = false
+	else:
+		can_grapple = true
 	buffer = JUMP_BUFFER if Input.is_action_just_pressed("jump") else maxf(buffer - delta, 0.0)
 
 	if Input.is_action_just_pressed("restart"):
@@ -151,13 +165,17 @@ func _physics_process(delta: float) -> void:
 	if has_dash and Input.is_action_just_pressed("dash") and can_dash:
 		_start_dash()
 	if Input.is_action_just_pressed("grapple"):
-		if pulling:
+		if swinging:
+			_end_swing()
+		elif pulling:
 			_end_pull()
 		elif has_grapple and can_grapple and not dashing:
 			_try_grapple()
 
 	if dashing:
 		_dash_step(delta)
+	elif swinging:
+		_swing_step(delta)
 	elif pulling:
 		_pull_step(delta)
 	else:
@@ -165,6 +183,20 @@ func _physics_process(delta: float) -> void:
 
 	move_and_slide()
 
+	var fd = get_parent().get("fall_death") if get_parent() != null else null
+	if fd != null and fd > 0.0:
+		if is_on_floor():
+			if air_top != INF and global_position.y - air_top > fd:
+				air_top = INF
+				_respawn()
+				return
+			air_top = INF
+		else:
+			air_top = minf(air_top, global_position.y)
+	if swinging:
+		var off := global_position - anchor_pos
+		if off.length() > rope_len:
+			global_position = anchor_pos + off.normalized() * rope_len
 	if pulling and get_slide_collision_count() > 0:
 		_end_pull()
 	var room_h: float = 720.0
@@ -249,23 +281,54 @@ func _try_grapple() -> void:
 		target_node = n
 		found = true
 
-	# 2) Otherwise whatever surface the aim ray hits (walls, floors, ceilings, doors)
-	if not found:
-		var q2 := PhysicsRayQueryParameters2D.create(global_position, global_position + aim * GRAPPLE_RANGE, 1, [get_rid()])
-		var hit := space.intersect_ray(q2)
-		if not hit.is_empty():
-			target_pos = hit.position
-			found = true
+	# Only green hooks and the thrown arm can be grappled. Walls, floors and ceilings do nothing.
 
 	if not found:
 		return   # missed; no charge spent
 	anchor_pos = target_pos
 	anchor_node = target_node
-	pulling = true
-	pull_time = 0.0
 	can_grapple = false
 	dashing = false
 	jet_fx.emitting = false
+	if target_node != null and target_node.is_in_group("hook"):
+		# Hooks are swing points: hang from a rope, A/D to pump, Space or E to let go.
+		swinging = true
+		rope_len = clampf(global_position.distance_to(target_pos), 70.0, GRAPPLE_RANGE)
+		return
+	pulling = true
+	pull_time = 0.0
+
+func _swing_step(delta: float) -> void:
+	if anchor_node and not is_instance_valid(anchor_node):
+		_end_swing()
+		return
+	if anchor_node:
+		anchor_pos = anchor_node.global_position
+	var dir := Input.get_axis("left", "right")
+	velocity.y += GRAVITY * delta
+	velocity.x += dir * 700.0 * delta
+	var to := global_position - anchor_pos
+	var d := to.length()
+	if d > 0.001:
+		var radial := to / d
+		var out := velocity.dot(radial)
+		if d >= rope_len - 1.0 and out > 0.0:
+			velocity -= radial * out          # rope is taut: no stretching
+	# shorten / lengthen the rope with Up / Down
+	rope_len = clampf(rope_len + Input.get_axis("up", "down") * 120.0 * delta, 70.0, GRAPPLE_RANGE)
+	if buffer > 0.0:
+		var boost := velocity
+		_end_swing()
+		velocity = boost * 1.1
+		velocity.y = minf(velocity.y, 0.0) + JUMP_VELOCITY * 0.6
+		buffer = 0.0
+
+func _end_swing() -> void:
+	if not swinging:
+		return
+	swinging = false
+	grapple_grace = GRAPPLE_JUMP_GRACE
+	anchor_node = null
 
 func _pull_step(delta: float) -> void:
 	if anchor_node and is_instance_valid(anchor_node):
@@ -317,7 +380,7 @@ func _arm_action() -> void:
 		# Ballistic throw: pick the launch velocity so the arm's arc passes through the cursor
 		var start := global_position + aim * 18.0
 		var d := get_global_mouse_position() - start
-		var flight := clampf(d.length() / ARM_THROW_SPEED, 0.08, 1.2)
+		var flight := clampf(d.length() / ARM_THROW_SPEED, 0.08, 2.0)
 		arm.launch(start, Vector2(d.x / flight, d.y / flight - 0.5 * arm.GRAVITY * flight))
 	else:
 		arm.launch(global_position + aim * 18.0, aim * ARM_THROW_SPEED + Vector2(velocity.x * 0.25, -60.0))
@@ -327,15 +390,28 @@ func _on_arm_returned() -> void:
 
 # ---------------------------------------------------------------- misc
 func _respawn() -> void:
+	if get_parent() != null and get_parent().get("riding") == true:
+		return      # no dying on the escalator
+	air_top = INF
 	global_position = spawn_point
 	velocity = Vector2.ZERO
 	can_dash = true
 	can_grapple = true
 	pulling = false
+	swinging = false
+	grapple_cd = 0.0
 	anchor_node = null
 	_end_dash()
 
 func _draw() -> void:
+	if sitting:
+		draw_rect(Rect2(-12, -22, 24, 32), Color("5a6b7a"))
+		draw_rect(Rect2(-8, -20, 16, 10), Color("9fe8ff"))
+		draw_rect(Rect2(-12, 10, 9, 20), Color("3d4954"))
+		draw_rect(Rect2(3, 10, 9, 20), Color("3d4954"))
+		draw_rect(Rect2(-18, -8, 6, 18), Color("6bd36b"))
+		draw_rect(Rect2(12, -8, 6, 18), Color("ffb347"))
+		return
 	var aim := _aim()
 	# body
 	draw_rect(Rect2(-12, -22, 24, 44), Color("5a6b7a") if can_dash else Color("3d4954"))
@@ -352,6 +428,6 @@ func _draw() -> void:
 		draw_rect(Rect2(1 + back.x * 14, 20 + back.y * 14, 8, 10), Color("ffd24a"))
 	# aim pip
 	draw_circle(aim * 34.0, 3.0, Color(1, 1, 1, 0.5))
-	if pulling:
+	if pulling or swinging:
 		draw_line(Vector2(-facing * 10, -4), to_local(anchor_pos), Color.WHITE, 2.0)
 		draw_circle(to_local(anchor_pos), 5.0, Color("6bd36b"))

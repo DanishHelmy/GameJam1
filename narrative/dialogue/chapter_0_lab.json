@@ -1,10 +1,25 @@
 {
   "id": "chapter_0_lab",
   "lines": [
-    { "speaker": "", "text": "Power restored: 12%." },
-    { "speaker": "", "text": "Left leg: missing. Right arm: functional. Left arm: missing." },
-    { "speaker": "Patient file", "text": "SUBJECT 0. STATUS: REJECTED. Do not reinitialise." },
-    { "speaker": "", "text": "Rejected by what?" },
-    { "speaker": "", "text": "...Get up." }
+    {
+      "speaker": "",
+      "text": "Power: twelve percent."
+    },
+    {
+      "speaker": "",
+      "text": "Left leg, gone. Left arm, gone. The right arm still answers when I ask it to."
+    },
+    {
+      "speaker": "",
+      "text": "A tag on the wall says SUBJECT 0. Under it, one word: REJECTED."
+    },
+    {
+      "speaker": "",
+      "text": "Rejected by whom? For what?"
+    },
+    {
+      "speaker": "",
+      "text": "It does not matter. The door is open. Get up."
+    }
   ]
 }

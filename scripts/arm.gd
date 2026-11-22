@@ -10,7 +10,7 @@ enum State { FLYING, LANDED, RETURNING }
 
 const GRAVITY := 900.0
 const RETURN_SPEED := 1000.0
-const MAX_FLIGHT_TIME := 1.4
+const MAX_FLIGHT_TIME := 2.0
 
 var state := State.FLYING
 var vel := Vector2.ZERO
@@ -54,7 +54,10 @@ func _physics_process(delta: float) -> void:
 				global_position = hit.position + hit.normal * 5.0
 				rotation = 0.0 if absf(hit.normal.y) > 0.5 else PI / 2.0
 				state = State.LANDED
-			if flight_time > MAX_FLIGHT_TIME or global_position.y > 1400.0:
+			var room_h := 720.0
+			if get_parent() != null and get_parent().get("height") != null:
+				room_h = get_parent().get("height")
+			if flight_time > MAX_FLIGHT_TIME or global_position.y > room_h + 300.0:
 				if target == null:
 					var p := get_tree().get_first_node_in_group("player")
 					if p:
