@@ -48,6 +48,7 @@ var _dash_prev := false
 
 
 func _ready() -> void:
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	load_level(0)
 
 
@@ -60,6 +61,7 @@ const LEVEL_BG := [
 	"res://assets/backgrounds/lvl6_roof.png",
 ]
 var bg_layer: CanvasLayer
+var plat_tex: Texture2D
 
 func _set_background(i: int) -> void:
 	if bg_layer:
@@ -78,6 +80,7 @@ func load_level(i: int) -> void:
 	level_i = i
 	var data: Dictionary = LevelsData.LEVELS[i]
 	map = (data["map"] as Array).duplicate()
+	plat_tex = PlatformTiles.build(map, i)
 	doors_open = {"S": false, "T": false}
 	weak_left = 0
 	for j in range(i):
@@ -396,7 +399,10 @@ func _draw() -> void:
 			var rect := Rect2(c * TILE, r * TILE, TILE, TILE)
 			match ch:
 				"#":
-					draw_rect(rect, Color(0.45, 0.47, 0.52))
+					if plat_tex:
+						draw_texture_rect_region(plat_tex, rect, Rect2(c * 8, r * 8, 8, 8))
+					else:
+						draw_rect(rect, Color(0.45, 0.47, 0.52))
 				"H":
 					draw_rect(rect, Color(0.3, 0.9, 1.0, 0.9) if xray else Color(0.3, 0.9, 1.0, 0.08), xray)
 				"^":
@@ -435,3 +441,13 @@ func _draw() -> void:
 		x += 100.0
 	if toast_t > 0.0:
 		draw_string(font, Vector2(16, 60), toast_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1, 0.9, 0.4))
+
+
+# DEBUG: F1-F6 jump to levels 1-6 (and unlock every limb). Remove before shipping.
+func _unhandled_input(event: InputEvent) -> void:
+	if not (event is InputEventKey and event.pressed and not event.echo):
+		return
+	var i: int = event.keycode - KEY_F1
+	if i < 0 or i >= LevelsData.LEVELS.size():
+		return
+	load_level(i)
