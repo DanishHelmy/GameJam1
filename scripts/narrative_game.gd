@@ -62,6 +62,7 @@ const LEVEL_BG := [
 ]
 var bg_layer: CanvasLayer
 var plat_tex: Texture2D
+var spike_tex: Texture2D
 var limb_tex := {}
 
 func _limb_texture(name: String) -> Texture2D:
@@ -114,6 +115,7 @@ func load_level(i: int) -> void:
 	var data: Dictionary = LevelsData.LEVELS[i]
 	map = (data["map"] as Array).duplicate()
 	plat_tex = PlatformTiles.build(map, i)
+	spike_tex = SpikeTiles.build(map, i)
 	doors_open = {"S": false, "T": false}
 	weak_left = 0
 	for j in range(i):
@@ -458,7 +460,10 @@ func _draw() -> void:
 				"H":
 					draw_rect(rect, Color(0.3, 0.9, 1.0, 0.9) if xray else Color(0.3, 0.9, 1.0, 0.08), xray)
 				"^":
-					draw_colored_polygon(PackedVector2Array([rect.position + Vector2(0, TILE), rect.position + Vector2(TILE / 2.0, 4), rect.position + Vector2(TILE, TILE)]), Color(0.9, 0.2, 0.2))
+					if spike_tex:
+						draw_texture_rect_region(spike_tex, rect, Rect2(c * 16, r * 16, 16, 16))
+					else:
+						draw_colored_polygon(PackedVector2Array([rect.position + Vector2(0, TILE), rect.position + Vector2(TILE / 2.0, 4), rect.position + Vector2(TILE, TILE)]), Color(0.9, 0.2, 0.2))
 				"D", "F":
 					if is_solid(c, r):
 						draw_rect(rect, Color(0.9, 0.7, 0.2))
