@@ -116,7 +116,26 @@ func load_level(i: int) -> void:
 	arm_on = false
 	respawn()
 	play_dialogue(data["dialogue"])
+	_spawn_limb_glows()
 	queue_redraw()
+
+
+var limb_glows: Array = []
+
+func _spawn_limb_glows() -> void:
+	for g in limb_glows:
+		if is_instance_valid(g):
+			g.queue_free()
+	limb_glows.clear()
+	for r in range(MAP_H):
+		for c in range(MAP_W):
+			if tile(c, r) == "L":
+				var g := LimbGlow.new()
+				g.game = self
+				g.cell = Vector2i(c, r)
+				g.position = Vector2((c + 0.5) * TILE, (r + 0.5) * TILE + Y_OFFSET)
+				add_child(g)
+				limb_glows.append(g)
 
 
 func respawn() -> void:
@@ -437,8 +456,7 @@ func _draw() -> void:
 				"L":
 					var lname: String = LevelsData.LEVELS[level_i]["limb"]
 					var bob := sin(Time.get_ticks_msec() / 260.0) * 3.0
-					draw_circle(rect.get_center(), 17, Color(1.0, 0.9, 0.4, 0.28))
-					if not _draw_limb(lname, rect.get_center() + Vector2(0, bob), 30.0):
+					if not _draw_limb(lname, rect.get_center() + Vector2(0, bob), 44.0):
 						draw_circle(rect.get_center(), 11, Color(1.0, 0.9, 0.4))
 				"E":
 					draw_rect(rect.grow(-4), Color(0.5, 1.0, 0.6))
@@ -460,10 +478,10 @@ func _draw() -> void:
 	var x := 700.0
 	for l in ["leg", "arm", "eye", "grapple", "jet"]:
 		var have: bool = owned.has(l)
-		draw_rect(Rect2(x - 4, 4, 40, 40), Color(0, 0, 0, 0.45))
-		if not _draw_limb(l, Vector2(x + 16, 24), 32.0, Color.WHITE if have else Color(0.2, 0.2, 0.25, 0.7)):
+		draw_rect(Rect2(x - 4, 2, 46, 46), Color(0, 0, 0, 0.45))
+		if not _draw_limb(l, Vector2(x + 19, 25), 38.0, Color.WHITE if have else Color(0.2, 0.2, 0.25, 0.7)):
 			draw_string(font, Vector2(x, 24), l.to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(1, 0.9, 0.4) if have else Color(0.4, 0.4, 0.4))
-		x += 52.0
+		x += 58.0
 	if toast_t > 0.0:
 		draw_string(font, Vector2(16, 60), toast_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1, 0.9, 0.4))
 
