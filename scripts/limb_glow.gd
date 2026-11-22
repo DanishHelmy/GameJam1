@@ -61,4 +61,5 @@ func _process(dt: float) -> void:
 	_core.scale = Vector2.ONE * lerpf(0.55, 0.8, b) * (110.0 / 128.0)
 	_core.modulate = Color(1, 1, 1, lerpf(0.6, 1.0, b))
 	# follow the sprite's bob
-	position.y = (cell.y + 0.5) * TILE + game.Y_OFFSET + sin(Time.get_ticks_msec() / 260.0) * 3.0
+	var lname: String = game.LevelsData.LEVELS[game.level_i]["limb"]
+	position = game.limb_center(cell.x, cell.y, lname) + Vector2(0, game.Y_OFFSET)

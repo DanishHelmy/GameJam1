@@ -70,6 +70,21 @@ func _limb_texture(name: String) -> Texture2D:
 		limb_tex[name] = load(path) if ResourceLoader.exists(path) else null
 	return limb_tex[name]
 
+const LIMB_PX := 44.0
+const LIMB_FLOOR_GAP := 3.0   # px kept clear between the sprite and the floor
+
+## Centre of a floating limb pickup (in map space, no Y_OFFSET). The sprite hovers upward
+## from just above the tile floor, so it never overlaps the ground.
+func limb_center(c: int, r: int, limb: String) -> Vector2:
+	var t := _limb_texture(limb)
+	var h := LIMB_PX
+	if t != null:
+		var s := t.get_size()
+		h = s.y * LIMB_PX / maxf(s.x, s.y)
+	var hover := (sin(Time.get_ticks_msec() / 260.0) + 1.0) * 0.5 * 5.0   # 0..5 px, upward only
+	var bottom := (r + 1) * TILE - LIMB_FLOOR_GAP - hover
+	return Vector2((c + 0.5) * TILE, bottom - h / 2.0)
+
 ## Draw a limb sprite fitted inside a box of size px, centred on c.
 func _draw_limb(name: String, c: Vector2, px: float, tint := Color.WHITE) -> bool:
 	var t := _limb_texture(name)
@@ -455,8 +470,7 @@ func _draw() -> void:
 					draw_arc(rect.get_center(), 11, 0, TAU, 20, Color(0.3, 0.9, 1.0, 0.9 if xray else 0.05), 3)
 				"L":
 					var lname: String = LevelsData.LEVELS[level_i]["limb"]
-					var bob := sin(Time.get_ticks_msec() / 260.0) * 3.0
-					if not _draw_limb(lname, rect.get_center() + Vector2(0, bob), 44.0):
+					if not _draw_limb(lname, limb_center(c, r, lname), LIMB_PX):
 						draw_circle(rect.get_center(), 11, Color(1.0, 0.9, 0.4))
 				"E":
 					draw_rect(rect.grow(-4), Color(0.5, 1.0, 0.6))
