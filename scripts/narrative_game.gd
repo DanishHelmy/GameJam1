@@ -134,6 +134,7 @@ func load_level(i: int) -> void:
 	respawn()
 	play_dialogue(data["dialogue"])
 	_spawn_limb_glows()
+	_spawn_exit_glows()
 	queue_redraw()
 
 
@@ -153,6 +154,23 @@ func _spawn_limb_glows() -> void:
 				g.position = Vector2((c + 0.5) * TILE, (r + 0.5) * TILE + Y_OFFSET)
 				add_child(g)
 				limb_glows.append(g)
+
+
+var exit_glows: Array = []
+
+func _spawn_exit_glows() -> void:
+	for g in exit_glows:
+		if is_instance_valid(g):
+			g.queue_free()
+	exit_glows.clear()
+	for r in range(MAP_H):
+		for c in range(MAP_W):
+			if tile(c, r) == "E":
+				var g := ExitGlow.new()
+				g.game = self
+				g.cell = Vector2i(c, r)
+				add_child(g)
+				exit_glows.append(g)
 
 
 func respawn() -> void:
