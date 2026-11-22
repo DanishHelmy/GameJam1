@@ -70,3 +70,18 @@ func _show_dialogue_then_resume(file: String) -> void:
 		if is_instance_valid(p):
 			p.set_physics_process(true))
 	add_child(dlg)
+
+# DEBUG: F1-F5 jump to the first room of each chapter (and unlock every ability). Remove before shipping.
+func _unhandled_input(event: InputEvent) -> void:
+	if not (event is InputEventKey and event.pressed and not event.echo):
+		return
+	var chapter := {KEY_F1: "c0r1", KEY_F2: "c1r1", KEY_F3: "c2r1", KEY_F4: "c3r1", KEY_F5: "c4r1"}
+	if not chapter.has(event.keycode):
+		return
+	Progress.has_leg = true
+	Progress.has_arm = true
+	Progress.has_grapple = true
+	Progress.has_dash = true
+	Progress.has_xray = true
+	Progress.room_index = Rooms.ORDER.find(chapter[event.keycode])
+	_load_room()
