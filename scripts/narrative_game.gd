@@ -516,13 +516,3 @@ func _draw() -> void:
 	HudSkin.limb_bar(self, owned, level_i)
 	if toast_t > 0.0:
 		draw_string(font, Vector2(16, 60), toast_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1, 0.9, 0.4))
-
-
-# DEBUG: F1-F6 jump to levels 1-6 (and unlock every limb). Remove before shipping.
-func _unhandled_input(event: InputEvent) -> void:
-	if not (event is InputEventKey and event.pressed and not event.echo):
-		return
-	var i: int = event.keycode - KEY_F1
-	if i < 0 or i >= LevelsData.LEVELS.size():
-		return
-	load_level(i)
