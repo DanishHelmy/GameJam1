@@ -458,29 +458,30 @@ func _draw() -> void:
 					else:
 						draw_rect(rect, Color(0.45, 0.47, 0.52))
 				"H":
-					draw_rect(rect, Color(0.3, 0.9, 1.0, 0.9) if xray else Color(0.3, 0.9, 1.0, 0.08), xray)
+					PropSkins.hidden_platform(self, rect, xray)
 				"^":
 					if spike_tex:
 						draw_texture_rect_region(spike_tex, rect, Rect2(c * 16, r * 16, 16, 16))
 					else:
 						draw_colored_polygon(PackedVector2Array([rect.position + Vector2(0, TILE), rect.position + Vector2(TILE / 2.0, 4), rect.position + Vector2(TILE, TILE)]), Color(0.9, 0.2, 0.2))
 				"D", "F":
-					if is_solid(c, r):
-						draw_rect(rect, Color(0.9, 0.7, 0.2))
+					var d_open: bool = doors_open["S"] if ch == "D" else doors_open["T"]
+					PropSkins.door(self, rect, level_i, ch, r, tile(c, r - 1) != ch, d_open)
 				"S", "T":
-					draw_rect(rect.grow(-6), Color(0.3, 1.0, 0.4) if doors_open[ch] else Color(1.0, 0.3, 0.3))
+					PropSkins.switch_(self, rect, level_i, ch, doors_open[ch])
 				"A":
-					draw_arc(rect.get_center(), 11, 0, TAU, 20, Color(1, 0.8, 0.3), 3)
+					PropSkins.anchor(self, rect, level_i, false, xray)
 				"a":
-					draw_arc(rect.get_center(), 11, 0, TAU, 20, Color(0.3, 0.9, 1.0, 0.9 if xray else 0.05), 3)
+					PropSkins.anchor(self, rect, level_i, true, xray)
 				"L":
 					var lname: String = LevelsData.LEVELS[level_i]["limb"]
 					if not _draw_limb(lname, limb_center(c, r, lname), LIMB_PX):
 						draw_circle(rect.get_center(), 11, Color(1.0, 0.9, 0.4))
 				"E":
-					draw_rect(rect.grow(-4), Color(0.5, 1.0, 0.6))
+					var need_l: String = LevelsData.LEVELS[level_i]["limb"]
+					PropSkins.exit_door(self, rect, level_i, need_l != "" and not owned.has(need_l))
 				"W":
-					draw_circle(rect.get_center(), 13, Color(1.0, 0.2, 0.8))
+					PropSkins.weak_point(self, rect, level_i)
 	if grapple_to != null:
 		draw_line(pos + Vector2(0, -PH / 2.0), grapple_to as Vector2, Color(1, 0.8, 0.3), 2)
 	if arm_on:
